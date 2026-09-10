@@ -1,0 +1,18 @@
+data:
+  datasets_to_load:
+    - "dataset2"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "highpass"
+
+model:
+  model_type: "conv_bilstm"
+  loss_type: "range_preserving"
+  lambda_corr: 0.5
+  lambda_var: 0.2
+  huber_delta: 2.0
+  calibration_prompt_sec: 30.0
+  lr: 0.0003
+  max_epochs: 150
+  early_stopping_patience: 15

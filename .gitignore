@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# IDE / tool state
+.idea/
+.zcode/
+
+# Datasets (third-party EyeCon data, download per README) and generated arrays/checkpoints
+data/raw/
+data/processed/
+
+# Local backups of earlier results
+backups/
