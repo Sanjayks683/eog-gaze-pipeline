@@ -14,3 +14,6 @@ data/processed/
 
 # Local backups of earlier results
 backups/
+
+# Duplicate "latest run" copy of reports/deep_model_<type>.json (16 MB)
+reports/deep_model_results.json

@@ -154,28 +154,33 @@ python main.py --config configs/dataset2_all_eog.yaml --phase all
 
 ### Master Results on Dataset 2 (Monopolar Stationary)
 
-> **Note:** these numbers come from the run *before* the 2026-09-10 fixes (250 Hz → 256 Hz
-> sampling rate, subject-held-out validation, least-squares calibration, trivial baselines).
-> The pipeline is being re-run and this table will be updated from `reports/master_results_table.csv`.
+Results after the 2026-09-10 fixes (256 Hz sampling rate, subject-held-out validation,
+least-squares calibration). Every number traces to a JSON file in `reports/` and to
+`reports/master_results_table.csv`.
 
 Evaluated under strict 5-fold cross-subject GroupKFold (zero test-subject leakage). The target horizontal gaze range is $\pm 27.3^\circ$ (std $= 14.07^\circ$) and vertical range is $\pm 16.0^\circ$ (std $= 8.00^\circ$).
 
 | Method | Dataset | RMSE H (deg) | RMSE V (deg) | MAE H (deg) | MAE V (deg) | F1 (weighted) | Notes |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| *Trivial: train-fold mean angle* | Dataset 2 only | 14.08° | 8.00° | — | — | — | Always predicts the training folds' mean angle |
+| *Trivial: majority class* | Dataset 2 only | — | — | — | — | 0.334 | Always predicts the train fold's most frequent class |
+| *Trivial: train-fold mean angle* | Dataset 2 only | 14.07° | 8.00° | 12.10° | 6.85° | — | Always predicts the train fold's mean angle |
 | **Classical ML (SVC)** | Dataset 2 only | — | — | — | — | 0.703 | 104 hand-crafted features from 6 channels |
-| **Classical ML (RF)** | Dataset 2 only | — | — | — | — | **0.716** | 104 hand-crafted features from 6 channels |
-| **Classical ML (SVR)** | Dataset 2 only | 11.82° | 7.28° | 9.59° | 6.02° | — | 104 hand-crafted features from 6 channels |
-| **Classical ML (XGB)** | Dataset 2 only | 11.58° | **7.17°** | 9.41° | 5.94° | — | 104 hand-crafted features from 6 channels |
-| **Deep Conv1D+BiLSTM** | Dataset 2 only | **11.17°** | 7.23° | **8.87°** | **5.93°** | 0.714 | Multi-task joint loss; $R^2_H = 0.37$, $R^2_V = 0.18$ |
+| **Classical ML (RF)** | Dataset 2 only | — | — | — | — | **0.715** | 104 hand-crafted features from 6 channels |
+| **Classical ML (SVR)** | Dataset 2 only | 11.75° | 7.25° | 9.53° | 6.00° | — | 104 hand-crafted features from 6 channels |
+| **Classical ML (XGB)** | Dataset 2 only | 11.53° | **7.15°** | 9.38° | **5.92°** | — | 104 hand-crafted features; $R^2_H = 0.33$, $R^2_V = 0.20$ |
+| **Deep Conv1D+BiLSTM** | Dataset 2 only | **11.41°** | 7.20° | **9.16°** | 5.95° | 0.701 | Multi-task joint loss; $R^2_H = 0.34$, $R^2_V = 0.19$ |
 | *Published: Barbara 2023* | Dataset 2 | 2.23° | 2.39° | — | — | — | *BSPC vol. 86 (within-subject calibrated battery model)* |
 
-> **Key takeaway**: on unseen subjects the best model (Conv1D+BiLSTM) explains ~37% of horizontal
-> and ~18% of vertical gaze-angle variance, i.e. only 21% / 10% lower RMSE than always predicting
-> the mean angle, and several times the error of the within-subject calibrated method in
-> Barbara 2023. The main limitation is the input: a 0.2 Hz high-pass on 300 ms windows removes
-> most of the absolute (DC) gaze-position information. Per-subject affine calibration does not
-> close the gap.
+Few-shot calibration (per-subject least-squares gain/offset fitted on each test subject's first
+30 s) moves the deep model from 11.42° / 7.20° to 11.67° / 7.41° RMSE on the remaining windows
+(`reports/calibration_results.json`).
+
+> **Key takeaway**: on unseen subjects the deep model and XGBoost are roughly tied, explaining
+> only ~34% of horizontal and ~19% of vertical gaze-angle variance: 19% / 10% lower RMSE than
+> always predicting the mean angle, and several times the error of the within-subject calibrated
+> method in Barbara 2023. Per-subject calibration slightly *increases* error, so the gap is not a
+> per-subject gain/offset problem. The main limitation is the input: a 0.2 Hz high-pass on 300 ms
+> windows removes most of the absolute (DC) gaze-position information.
 
 ---
 
