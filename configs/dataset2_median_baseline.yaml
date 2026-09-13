@@ -1,0 +1,32 @@
+# configs/dataset2_median_baseline.yaml
+# =====================================
+# Experiment: identical to dataset2_all_eog.yaml except for drift removal.
+# Instead of a 0.2 Hz high-pass (which erases the DC level that encodes absolute
+# gaze angle within ~1 s of each fixation), subtract a 30 s centred moving-median
+# baseline. Outputs go to separate directories so the baseline run stays intact.
+
+data:
+  datasets_to_load:
+    - "dataset2"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "moving_median"
+  median_baseline_sec: 30.0
+  median_baseline_causal: false
+
+model:
+  model_type: "conv_bilstm"
+  loss_type: "range_preserving"
+  lambda_corr: 0.5
+  lambda_var: 0.2
+  huber_delta: 2.0
+  calibration_prompt_sec: 30.0
+  lr: 0.0003
+  max_epochs: 150
+  early_stopping_patience: 15
+
+paths:
+  data_processed: "data/processed_median30"
+  results: "reports/experiments/median30"
+  reports_figures: "reports/experiments/median30/figures"

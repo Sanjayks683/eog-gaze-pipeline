@@ -1,0 +1,31 @@
+# configs/dataset2_median_baseline_causal.yaml
+# ============================================
+# Real-time variant of dataset2_median_baseline.yaml: the 30 s moving-median
+# baseline uses only PAST samples, so it could run online. Everything else is
+# identical; outputs go to their own directories.
+
+data:
+  datasets_to_load:
+    - "dataset2"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "moving_median"
+  median_baseline_sec: 30.0
+  median_baseline_causal: true
+
+model:
+  model_type: "conv_bilstm"
+  loss_type: "range_preserving"
+  lambda_corr: 0.5
+  lambda_var: 0.2
+  huber_delta: 2.0
+  calibration_prompt_sec: 30.0
+  lr: 0.0003
+  max_epochs: 150
+  early_stopping_patience: 15
+
+paths:
+  data_processed: "data/processed_median30_causal"
+  results: "reports/experiments/median30_causal"
+  reports_figures: "reports/experiments/median30_causal/figures"

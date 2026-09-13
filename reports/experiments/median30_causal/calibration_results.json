@@ -1,0 +1,176 @@
+{
+  "prompt_duration_sec": 30.0,
+  "n_evaluated_windows": 52684,
+  "uncalibrated_rmse_h_deg": 7.986319541931152,
+  "uncalibrated_rmse_v_deg": 6.960109710693359,
+  "uncalibrated_mae_h_deg": 6.284785270690918,
+  "uncalibrated_mae_v_deg": 5.292607307434082,
+  "uncalibrated_r2_h": 0.6771841049194336,
+  "calibrated_rmse_h_deg": 8.926046371459961,
+  "calibrated_rmse_v_deg": 7.540985584259033,
+  "calibrated_mae_h_deg": 6.935526371002197,
+  "calibrated_mae_v_deg": 5.997651100158691,
+  "calibrated_r2_h": 0.5967450141906738,
+  "per_subject": {
+    "S1": {
+      "n_calibration_windows": 203,
+      "n_evaluation_windows": 5270,
+      "gains": [
+        0.8762504458427429,
+        0.9895067811012268
+      ],
+      "offsets": [
+        1.353132724761963,
+        -3.2595419883728027
+      ],
+      "uncal_rmse_h": 5.682690143585205,
+      "uncal_rmse_v": 5.928522109985352,
+      "cal_rmse_h": 5.558207035064697,
+      "cal_rmse_v": 7.686212539672852
+    },
+    "S10": {
+      "n_calibration_windows": 203,
+      "n_evaluation_windows": 5215,
+      "gains": [
+        1.1150110960006714,
+        1.2138781547546387
+      ],
+      "offsets": [
+        -0.9413083791732788,
+        0.22189152240753174
+      ],
+      "uncal_rmse_h": 7.254884243011475,
+      "uncal_rmse_v": 7.063140392303467,
+      "cal_rmse_h": 7.2839579582214355,
+      "cal_rmse_v": 7.116968154907227
+    },
+    "S2": {
+      "n_calibration_windows": 203,
+      "n_evaluation_windows": 5277,
+      "gains": [
+        1.0487251281738281,
+        1.4608792066574097
+      ],
+      "offsets": [
+        1.9705181121826172,
+        -5.285799503326416
+      ],
+      "uncal_rmse_h": 5.832184791564941,
+      "uncal_rmse_v": 4.162225723266602,
+      "cal_rmse_h": 6.153365612030029,
+      "cal_rmse_v": 7.324849605560303
+    },
+    "S3": {
+      "n_calibration_windows": 203,
+      "n_evaluation_windows": 5275,
+      "gains": [
+        0.9018144011497498,
+        1.089279294013977
+      ],
+      "offsets": [
+        2.5260276794433594,
+        1.3259015083312988
+      ],
+      "uncal_rmse_h": 5.618228435516357,
+      "uncal_rmse_v": 4.869850158691406,
+      "cal_rmse_h": 6.259646415710449,
+      "cal_rmse_v": 4.998642921447754
+    },
+    "S4": {
+      "n_calibration_windows": 203,
+      "n_evaluation_windows": 5274,
+      "gains": [
+        1.1207053661346436,
+        0.9021716713905334
+      ],
+      "offsets": [
+        2.477935552597046,
+        -7.796596527099609
+      ],
+      "uncal_rmse_h": 9.080554008483887,
+      "uncal_rmse_v": 5.879263401031494,
+      "cal_rmse_h": 11.298811912536621,
+      "cal_rmse_v": 8.651551246643066
+    },
+    "S5": {
+      "n_calibration_windows": 203,
+      "n_evaluation_windows": 5275,
+      "gains": [
+        1.0570459365844727,
+        0.6048910617828369
+      ],
+      "offsets": [
+        -0.6038220524787903,
+        -0.910857081413269
+      ],
+      "uncal_rmse_h": 9.10391616821289,
+      "uncal_rmse_v": 13.11421012878418,
+      "cal_rmse_h": 8.817194938659668,
+      "cal_rmse_v": 10.55091381072998
+    },
+    "S6": {
+      "n_calibration_windows": 203,
+      "n_evaluation_windows": 5462,
+      "gains": [
+        1.0305944681167603,
+        0.9499750137329102
+      ],
+      "offsets": [
+        1.7543811798095703,
+        1.3243494033813477
+      ],
+      "uncal_rmse_h": 7.516768455505371,
+      "uncal_rmse_v": 4.915179252624512,
+      "cal_rmse_h": 7.313663005828857,
+      "cal_rmse_v": 5.455302715301514
+    },
+    "S7": {
+      "n_calibration_windows": 203,
+      "n_evaluation_windows": 5211,
+      "gains": [
+        1.4261373281478882,
+        1.50498366355896
+      ],
+      "offsets": [
+        4.911909103393555,
+        -1.4779353141784668
+      ],
+      "uncal_rmse_h": 10.327982902526855,
+      "uncal_rmse_v": 5.8221330642700195,
+      "cal_rmse_h": 10.12939453125,
+      "cal_rmse_v": 5.960498332977295
+    },
+    "S8": {
+      "n_calibration_windows": 203,
+      "n_evaluation_windows": 5211,
+      "gains": [
+        1.3348850011825562,
+        2.026170015335083
+      ],
+      "offsets": [
+        6.3316497802734375,
+        7.735159873962402
+      ],
+      "uncal_rmse_h": 8.677919387817383,
+      "uncal_rmse_v": 6.613200664520264,
+      "cal_rmse_h": 13.386287689208984,
+      "cal_rmse_v": 8.810779571533203
+    },
+    "S9": {
+      "n_calibration_windows": 203,
+      "n_evaluation_windows": 5214,
+      "gains": [
+        1.1630487442016602,
+        1.1781986951828003
+      ],
+      "offsets": [
+        5.4575910568237305,
+        -1.025713324546814
+      ],
+      "uncal_rmse_h": 9.192976951599121,
+      "uncal_rmse_v": 7.119247913360596,
+      "cal_rmse_h": 9.866479873657227,
+      "cal_rmse_v": 7.2139506340026855
+    }
+  }
+}

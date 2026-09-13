@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import numpy as np
 from scipy import signal as sp_signal
+from scipy.ndimage import median_filter
 from typing import Literal
 
 from src.config import CFG
@@ -21,7 +22,7 @@ from src.config import CFG
 def remove_baseline_drift(
     sig: np.ndarray,
     fs: float,
-    method: Literal["highpass", "polynomial_detrend"] = None,
+    method: Literal["highpass", "polynomial_detrend", "moving_median"] = None,
 ) -> np.ndarray:
     """
     Remove low-frequency baseline drift from an EOG signal.
@@ -30,7 +31,7 @@ def remove_baseline_drift(
     ----------
     sig    : 1-D numpy array (n_samples,)
     fs     : sampling rate in Hz
-    method : "highpass" or "polynomial_detrend" (default from CFG)
+    method : "highpass", "polynomial_detrend" or "moving_median" (default from CFG)
 
     Returns
     -------
@@ -49,8 +50,13 @@ def remove_baseline_drift(
         return _butterworth_highpass(sig, fs)
     elif method == "polynomial_detrend":
         return _polynomial_detrend(sig, fs)
+    elif method == "moving_median":
+        return _moving_median_detrend(sig, fs)
     else:
-        raise ValueError(f"Unknown drift removal method: {method!r}. Use 'highpass' or 'polynomial_detrend'.")
+        raise ValueError(
+            f"Unknown drift removal method: {method!r}. "
+            "Use 'highpass', 'polynomial_detrend' or 'moving_median'."
+        )
 
 
 def remove_noise(sig: np.ndarray, fs: float) -> np.ndarray:
@@ -174,6 +180,29 @@ def _polynomial_detrend(sig: np.ndarray, fs: float) -> np.ndarray:
     coeffs = np.polyfit(t, sig, order)
     trend = np.polyval(coeffs, t)
     return sig - trend
+
+
+def _moving_median_detrend(sig: np.ndarray, fs: float) -> np.ndarray:
+    """
+    Subtract a slow moving-median baseline (CFG.preprocessing.median_baseline_sec).
+
+    Unlike a high-pass filter this keeps the DC level of each fixation, which is
+    what encodes absolute gaze angle, while removing slow electrode drift; the
+    median is insensitive to blinks and saccade steps. The baseline is estimated
+    on the signal decimated to ~8 Hz for speed. With median_baseline_causal=True
+    each sample's baseline uses only past samples (real-time compatible).
+    """
+    step = max(1, int(fs // 8))
+    decimated = sig[::step]
+    w = max(1, int(round(CFG.preprocessing.median_baseline_sec * fs / step)))
+    if CFG.preprocessing.median_baseline_causal:
+        import pandas as pd
+        base = pd.Series(decimated).rolling(w, min_periods=1).median().to_numpy()
+        baseline = np.repeat(base, step)[: len(sig)]
+    else:
+        base = median_filter(decimated, size=w, mode="nearest")
+        baseline = np.interp(np.arange(len(sig)), np.arange(len(decimated)) * step, base)
+    return sig - baseline
 
 
 def filter_trial_channels(

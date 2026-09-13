@@ -182,6 +182,36 @@ Few-shot calibration (per-subject least-squares gain/offset fitted on each test 
 > per-subject gain/offset problem. The main limitation is the input: a 0.2 Hz high-pass on 300 ms
 > windows removes most of the absolute (DC) gaze-position information.
 
+### Experiment: moving-median drift removal
+
+Identical pipeline, except drift is removed by subtracting a 30 s moving-median baseline instead
+of the 0.2 Hz high-pass, which keeps each fixation's DC level. The 30 s window was not tuned.
+Configs: `configs/dataset2_median_baseline.yaml` (centred window, offline) and
+`configs/dataset2_median_baseline_causal.yaml` (past-only window, real-time compatible).
+Results are in `reports/experiments/median30*/`.
+
+| RMSE H / V (deg) unless noted | High-pass 0.2 Hz (above) | Median 30 s, centred | Median 30 s, causal |
+| :--- | :---: | :---: | :---: |
+| Train-fold mean angle | 14.07 / 8.00 | 14.07 / 8.00 | 14.07 / 8.00 |
+| XGBoost | 11.53 / 7.15 | **6.61 / 4.75** | 7.54 / 6.54 |
+| SVR | 11.75 / 7.25 | 6.73 / 4.90 | 7.75 / 6.64 |
+| Deep Conv1D+BiLSTM | 11.41 / 7.20 | 6.67 / 4.88 | 7.97 / 6.92 |
+| $R^2$ H / V, XGBoost | 0.33 / 0.20 | 0.78 / 0.65 | 0.71 / 0.33 |
+| Classification F1 (weighted), RF | 0.715 | 0.534 | 0.507 |
+| Classification F1 (weighted), deep | 0.701 | 0.451 | 0.374 |
+
+- Keeping the DC level cuts regression error by ~40% (H) and ~35% (V) for every model.
+- The causal (real-time) variant keeps most of the horizontal gain; vertical is weaker, mostly
+  because of one fold (fold-2 V RMSE 9.4–10.4°).
+- Trial-interval classification gets worse. Under the high-pass, each saccade becomes a decaying
+  transient whose level acts as a "time since saccade" clock that lines up with the fixed
+  1 s / 1 s / 2 s trial timing; with the DC level kept, the level encodes (random) gaze position
+  instead. A pipeline that needs both tasks should feed the classifier high-passed channels and
+  the regressor median-baselined channels.
+- Calibration on each subject's first 30 s still increases error (centred: 6.67 / 4.89 →
+  7.53 / 5.21), plausibly because the session start is where the baseline estimate is least reliable.
+- Still ~3× the published 2.23° / 2.39°, which uses within-subject calibration.
+
 ---
 
 ## Project Structure

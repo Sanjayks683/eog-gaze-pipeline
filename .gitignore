@@ -10,10 +10,10 @@ __pycache__/
 
 # Datasets (third-party EyeCon data, download per README) and generated arrays/checkpoints
 data/raw/
-data/processed/
+data/processed*/
 
 # Local backups of earlier results
 backups/
 
 # Duplicate "latest run" copy of reports/deep_model_<type>.json (16 MB)
-reports/deep_model_results.json
+reports/**/deep_model_results.json

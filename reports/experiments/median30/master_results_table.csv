@@ -1,0 +1,9 @@
+method,dataset,rmse_h_deg,rmse_v_deg,mae_h_deg,mae_v_deg,f1_weighted,notes
+Baseline: majority class,Dataset 2 only,,,,,0.33355674110035816,Always predicts the train fold's most frequent class
+Baseline: train-fold mean angle,Dataset 2 only,14.072630357218172,7.996417674038531,12.103734016418457,6.85066032409668,,Always predicts the train fold's mean H/V angle
+Classical ML (SVC) — classification,Dataset 2 only,,,,,0.5263951878903411,
+Classical ML (RF) — classification,Dataset 2 only,,,,,0.5341256936144289,
+Classical ML (SVR) — regression,Dataset 2 only,6.727428502532671,4.902519255689502,5.179079726431372,3.846603733041756,,
+Classical ML (XGB) — regression,Dataset 2 only,6.614194298865473,4.753311809653353,5.106175422668457,3.725790023803711,,
+Deep multi-task (conv_bilstm / EOGConvLSTMNet),Dataset 2 only,6.6723492563255915,4.87836946293978,5.1818766593933105,3.8492085933685303,0.45127167260776935,Multi-task: classification + regression jointly
+Published: Barbara_2023_BSPC,Dataset 2,2.23,2.39,,,,"Barbara et al., BSPC vol.86, Sep.2023 (battery model under stationary head)"

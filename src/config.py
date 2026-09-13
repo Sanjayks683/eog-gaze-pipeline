@@ -24,6 +24,8 @@ class PreprocessingConfig:
     blink_min_duration_ms: float = 40.0
     drift_removal_method: str = "highpass"
     polynomial_detrend_order: int = 2
+    median_baseline_sec: float = 30.0
+    median_baseline_causal: bool = False
     use_augmentation: bool = True
 
 @dataclass
@@ -202,5 +204,7 @@ def load_config_from_yaml(yaml_path: str) -> Config:
                     f"Unknown config key {section}.{k} in {yaml_path}. "
                     "Check src/config.py for valid field names."
                 )
+            if section == "paths" and isinstance(v, str) and not os.path.isabs(v):
+                v = os.path.normpath(os.path.join(CFG.paths.project_root, v))
             setattr(sub_cfg, k, v)
     return CFG
