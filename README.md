@@ -475,6 +475,49 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
   offset that keeps adding up (1.9% of labelled blinks counted as eye
   movements on Dataset 4, 5.1% on Dataset 3).
 
+### Robustness checks
+
+#### Range features when test gaze covers only part of the screen (Dataset 2)
+
+The rolling-range features estimate the screen centre and each subject's EOG gain from the spread
+of recent gaze, which Dataset 2's evenly spread cues favour. `scripts/range_stress_test.py`
+rebuilds each test subject's recording from a subset of its 200 trials (about 800 s) and scores
+real-time XGBoost trained on the other subjects' full recordings. The setup is a 60 s past-only
+robust line with weighted training, run on the GPU, with and without the range features. Each
+skewed subset has two controls with the same number of trials: random trials joined the same way,
+and one contiguous block, which is just as short but has no joins.
+
+| Test recording (mean trials kept) | Context features, fixation MAE H / V | + range features | Gain from range H / V |
+| :--- | :---: | :---: | :---: |
+| Full recording (200) | 4.82 / 4.12 | 4.39 / 3.88 | +0.43 / +0.24 |
+| Right only: both cues H > 0 (51) | 19.29 / 6.49 | 15.53 / 5.68 | +3.75 / +0.81 |
+| … random trials, joined (51) | 9.91 / 6.63 | 8.06 / 6.01 | +1.85 / +0.62 |
+| … contiguous block (51) | 9.28 / 5.27 | 6.03 / 4.54 | +3.25 / +0.73 |
+| Top only: both cues V > 0 (50) | 9.47 / 10.84 | 7.36 / 9.75 | +2.11 / +1.09 |
+| … random trials, joined (50) | 9.22 / 6.33 | 7.55 / 5.86 | +1.67 / +0.46 |
+| … contiguous block (50) | 10.32 / 4.74 | 6.78 / 4.42 | +3.53 / +0.32 |
+| Centre: both cues in the central two thirds (33) | 10.97 / 5.44 | 9.31 / 5.16 | +1.65 / +0.28 |
+| … random trials, joined (33) | 10.12 / 6.68 | 8.56 / 6.12 | +1.56 / +0.56 |
+| … contiguous block (33) | 7.66 / 5.02 | 6.02 / 4.20 | +1.64 / +0.81 |
+
+- **The range features lower the error in every scenario.** The gain is no smaller when gaze is
+  one-sided than in the random-trial controls (right only: +3.75° horizontal vs +1.85°).
+- **One-sided gaze defeats the drift baseline itself, with or without range features.** With every
+  cue on the right, horizontal error reaches 19.3° (15.5° with range features), against 9.9° (8.1°)
+  for random trials. Top-only cues do the same to vertical error (10.8° vs 6.3°). A rolling
+  baseline treats the average EOG level over its window as the centre, so a gaze offset that lasts
+  that long is removed as drift. Cues kept near the centre cost little (11.0° vs 10.1°). The
+  known-start task above does not rely on this assumption.
+- **Short recordings are costly on their own.** A contiguous 200 s block roughly doubles horizontal
+  error compared with the full recording (7.7–10.3° vs 4.8° without range features). The 120 s
+  context baselines and the 240 s range windows have little or no full history in a recording
+  that short.
+- **Joining trials costs extra with range features:** random trials score 0.8–2.5° worse than a
+  contiguous block of the same length (8.06 vs 6.03°, 7.55 vs 6.78°, 8.56 vs 6.02° horizontal).
+  Without range features the difference is inconsistent.
+- These recordings are shortened, so the absolute numbers are not comparable to the main tables.
+  Results: `reports/experiments/range_stress_test/dataset2/range_stress_test.json`.
+
 ---
 
 ## Experiment Index
@@ -500,6 +543,9 @@ model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curve
 | `dataset4_robust_line_causal.yaml` | `reports/experiments/dataset4/robustline60_causal/` | Dataset 4 real-time baseline (18 channels) |
 | `dataset4_range_causal_{weighted,fixation}.yaml` | `reports/experiments/dataset4/range_causal_*/` | Dataset 4 with the best Dataset 2 setup |
 | `dataset4_known_start.yaml` | `reports/experiments/dataset4/known_start/` | Dataset 4 known-start protocol |
+| `scripts/nested_cv.py` with `dataset2_range_{causal,centred}_weighted.yaml` | `reports/experiments/nested_cv/dataset2/{realtime,offline}/` | Nested cross-subject selection of baseline window, features and training windows |
+| `scripts/range_stress_test.py` with `dataset2_range_causal_weighted.yaml` | `reports/experiments/range_stress_test/dataset2/` | Range features when test gaze covers only part of the screen |
+| `scripts/subject_statistics.py` | `reports/experiments/statistics/` | Per-subject Wilcoxon tests and bootstrap confidence intervals |
 
 ---
 
@@ -515,13 +561,16 @@ eog-gaze-pipeline/
 │   ├── config.py            # ALL tunable parameters — edit here only
 │   ├── data/                # schema, loaders, unify, datasets
 │   ├── preprocessing/       # filtering, blink detection, normalization
-│   ├── features/            # hand-crafted and context/range features for classical ML
+│   ├── features/            # hand-crafted and context/range features for classical ML; feature matrices for the scripts
 │   ├── models/              # integration baseline, classical ML, deep model
 │   ├── training/            # CV splits, training loop
 │   ├── evaluation/          # metrics, paper comparison table, known-start protocol
 │   └── ablations/           # head-pose (Phase 9), direction (Phase 10)
 ├── scripts/
-│   └── inspect_raw.py       # Phase 0 verification
+│   ├── inspect_raw.py       # Phase 0 verification
+│   ├── nested_cv.py         # nested cross-subject model selection
+│   ├── range_stress_test.py # range features under skewed gaze
+│   └── subject_statistics.py  # per-subject significance tests and confidence intervals
 ├── tests/                   # pytest test suite
 ├── notebooks/               # EDA and results notebooks
 ├── reports/
