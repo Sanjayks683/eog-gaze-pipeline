@@ -387,6 +387,11 @@ the paper's comparison method [BSPC 47, 2019]):
 - *Detected saccades + head rotation* (recordings with head pose, i.e. Dataset 3): detected
   saccades, plus minus the head's yaw / pitch change between detected movements
   (`known_start.vor_gain` = 1); see [Datasets 3 and 4](#datasets-3-and-4).
+- *Fused with cross-subject XGBoost* (`scripts/known_start_fusion.py`): detected saccades plus a
+  causal low-pass of (XGBoost estimate − detected-saccade estimate). The time constant is chosen per
+  axis on the fit data, from 1 s to ∞. XGBoost is the real-time model with context + range features
+  and weighted training, trained 5-fold cross-subject so it never sees the test subject. The saccade
+  sum supplies the fast changes, XGBoost the slow level.
 
 | Known-start task, MAE H / V (deg) | Fit | All segments | Outlier segments dropped |
 | :--- | :--- | :---: | :---: |
@@ -399,6 +404,8 @@ the paper's comparison method [BSPC 47, 2019]):
 | *Published: signal differencing, short* | same subject | — | 1.51 ± 0.55 / 1.95 ± 0.29 |
 | Long 32 s, detected saccades | same subject | 4.71 ± 1.59 / 8.39 ± 3.13 | 4.21 ± 1.81 / 8.36 ± 3.29 |
 | Long 32 s, detected saccades | unseen subject | 4.91 ± 1.41 / 8.73 ± 3.63 | 4.45 ± 1.52 / 8.77 ± 3.70 |
+| **Long 32 s, fused with cross-subject XGBoost** | same subject | 3.62 ± 0.87 / 3.40 ± 0.67 | **3.36 ± 0.85 / 3.38 ± 0.65** |
+| Long 32 s, fused with cross-subject XGBoost | unseen subject | 3.89 ± 0.96 / 3.59 ± 0.74 | 3.80 ± 1.01 / 3.56 ± 0.72 |
 | *Published: dual Kalman filter, long* | same subject | — | 5.23 ± 2.00 / 6.59 ± 3.10 |
 | *Published: signal differencing, long* | same subject | — | 5.82 ± 2.70 / 8.04 ± 2.96 |
 
@@ -414,6 +421,15 @@ the paper's comparison method [BSPC 47, 2019]):
   5.82° after exclusion), vertical error is higher than both (8.36 vs 6.59 / 8.04°). Summing
   detected displacements is essentially the paper's signal-differencing method; the Kalman
   filter's blink and eyelid modelling handles the vertical channel better.
+- **Fusion fixes the long-segment vertical error.** Fused with cross-subject XGBoost, long
+  segments reach 3.36 / 3.38° (outliers dropped).
+  - **Against the paper:** that is below the Kalman filter (5.23 / 6.59°) and signal differencing
+    (5.82 / 8.04°) on both axes.
+  - **Unseen subjects:** 3.80 / 3.56°.
+  - **Time constants chosen:** mostly 2–5 s for vertical and a wide range for horizontal. On short
+    segments the fit chooses no fusion, so those numbers are unchanged.
+  - **Not like-for-like:** the XGBoost model learns from the other subjects' labelled recordings,
+    which the paper's filter does not use.
 - **Unseen subjects** (not in the paper): 1.34 / 1.82° on short segments with no labels from the
   test subject.
 - **Remaining differences from the paper:** ground-truth thresholds come from each whole
@@ -650,6 +666,7 @@ model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curve
 | `scripts/nested_cv.py` with `dataset2_range_{causal,centred}_weighted.yaml` | `reports/experiments/nested_cv/dataset2/{realtime,offline}/` | Nested cross-subject selection of baseline window, features and training windows |
 | `scripts/range_stress_test.py` with `dataset2_range_causal_weighted.yaml` | `reports/experiments/range_stress_test/dataset2/` | Range features when test gaze covers only part of the screen |
 | `scripts/subject_statistics.py` | `reports/experiments/statistics/` | Per-subject Wilcoxon tests and bootstrap confidence intervals |
+| `scripts/known_start_fusion.py --dataset datasetN` | `reports/experiments/known_start_fusion/datasetN/` | Known start fused with cross-subject XGBoost |
 
 ---
 
@@ -675,6 +692,7 @@ eog-gaze-pipeline/
 │   ├── nested_cv.py         # nested cross-subject model selection
 │   ├── range_stress_test.py # range features under skewed gaze
 │   ├── subject_statistics.py  # per-subject significance tests and confidence intervals
+│   ├── known_start_fusion.py  # known start fused with cross-subject XGBoost
 │   └── make_figures.py      # result figures from the saved JSON files
 ├── tests/                   # pytest test suite
 ├── reports/

@@ -43,6 +43,13 @@ linear map without intercept, as in Barbara et al., BSPC 47, 2019):
     see; inside a detected movement the EOG step already includes the head's share.
     It uses the detected-saccade A unchanged: the gaze shifts A is fitted on are the
     cue steps, taken before the head has moved.
+  * fused (given per-sample absolute gaze estimates from a cross-subject model, see
+    scripts/known_start_fusion.py): the detected-saccade estimate (with the head term
+    when available) plus a causal first-order low-pass, time constant tau, of the
+    absolute estimate minus it, starting from 0 at the known start. The saccade sum
+    supplies fast changes and the absolute model the slow level, so errors that build
+    up over a segment are pulled back. tau is chosen per axis from FUSION_TAUS_SEC on
+    the fit data (inf = no fusion).
 """
 
 from __future__ import annotations
@@ -60,6 +67,7 @@ from src.config import CFG
 from src.data.schema import Trial
 
 FIXATION, SACCADE, BLINK = 0, 1, 2
+FUSION_TAUS_SEC = (1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, np.inf)
 
 
 def _ms(ms: float, fs: float) -> int:
@@ -279,8 +287,12 @@ def _estimator_disagrees(w: Dict, events: Dict) -> bool:
     return False
 
 
-def prepare_recording(trial: Trial) -> Dict:
-    """Signals, estimator events, ground-truth labels, windows, short and long subsets."""
+def prepare_recording(trial: Trial, absolute: Optional[np.ndarray] = None) -> Dict:
+    """
+    Signals, estimator events, ground-truth labels, windows, short and long subsets.
+    `absolute`: optional (n_samples, 2) causal gaze estimates from a model that never
+    saw this subject (NaN where none exists yet), for the fused estimator.
+    """
     cfg = CFG.known_start
     fs = trial.fs
     hv = lowpass_hv(trial)
@@ -319,6 +331,8 @@ def prepare_recording(trial: Trial) -> Dict:
         "mv_known": events["offset"][keep] + _ms(cfg.after_gap_ms, fs) + level_win,
         "level_win": level_win,
         "vor": _head_rotation_between_movements(trial, events, n, fs),
+        "absolute": None if absolute is None else np.vstack(
+            [np.asarray(absolute, dtype=np.float64)[:n], np.full((max(0, n - len(absolute)), 2), np.nan)]),
     }
 
 
@@ -331,6 +345,8 @@ def _saccade_displacement(d: Dict, start: int, idx: np.ndarray) -> np.ndarray:
     first = np.searchsorted(d["mv_onset"], start)
     onset, known = d["mv_onset"][first:], d["mv_known"][first:]
     before, delta = d["mv_before"][first:], d["mv_delta"][first:]
+    if len(onset) == 0:
+        return np.zeros((len(idx), 2))
     csum = np.r_[np.zeros((1, 2)), np.cumsum(delta, axis=0)]
     last = np.searchsorted(onset, idx, side="right") - 1
     disp = csum[np.searchsorted(known, idx, side="right")]
@@ -377,7 +393,46 @@ def _vor_displacement(d: Dict, start: int, idx: np.ndarray) -> np.ndarray:
 
 
 def _estimators(d: Dict) -> Tuple[str, ...]:
-    return ("saccades", "level") + (("saccades_vor",) if d.get("vor") is not None else ())
+    return (("saccades", "level") + (("saccades_vor",) if d.get("vor") is not None else ())
+            + (("fused",) if d.get("absolute") is not None else ()))
+
+
+def _fused_predictions(d: Dict, windows: List[Dict], A: np.ndarray, gain: np.ndarray, taus) -> tuple:
+    """
+    (len(taus), n_scored, 2) fused estimates at the segment's scored samples, one per
+    time constant, and (n_scored, 2) targets; None when nothing is scored.
+    """
+    start, gaze0 = windows[0]["start"], windows[0]["gaze0"]
+    idx = np.concatenate([w["scored"] for w in windows])
+    if len(idx) == 0:
+        return None
+    span = np.arange(start, idx.max() + 1)
+    base = gaze0 + (_saccade_displacement(d, start, span) / gain) @ A.T
+    if d.get("vor") is not None:
+        base = base + _vor_displacement(d, start, span)
+    diff = d["absolute"][span] - base
+    diff[~np.isfinite(diff)] = 0.0  # no absolute estimate yet: no correction
+    at = idx - start
+    out = np.empty((len(taus), len(idx), 2))
+    for i, tau in enumerate(taus):
+        if np.isinf(tau):
+            out[i] = base[at]
+            continue
+        alpha = 1.0 - np.exp(-1.0 / (tau * d["fs"]))
+        out[i] = base[at] + sp_signal.lfilter([alpha], [1.0, alpha - 1.0], diff, axis=0)[at]
+    return out, d["target"][idx]
+
+
+def _choose_taus(fit_segments: List[tuple], A: np.ndarray) -> np.ndarray:
+    """Per axis, the FUSION_TAUS_SEC value with the lowest mean error over (recording, windows, gain) segments."""
+    errors = []
+    for d, windows, gain in fit_segments:
+        fused = _fused_predictions(d, windows, A, gain, FUSION_TAUS_SEC)
+        if fused is not None:
+            errors.append(np.abs(fused[0] - fused[1]).mean(axis=1))
+    if not errors:
+        return np.array([np.inf, np.inf])
+    return np.array(FUSION_TAUS_SEC)[np.mean(errors, axis=0).argmin(axis=0)]
 
 
 def _fit_no_intercept(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
@@ -396,16 +451,30 @@ def training_pairs(d: Dict, windows: List[Dict], gain: np.ndarray) -> Dict[str, 
     return {"saccades": (X_sac / gain, Y), "level": (X_lvl / gain, Y)}
 
 
-def _fit_estimators(pairs: Dict[str, tuple], d: Dict) -> Dict[str, np.ndarray]:
-    """A per estimator; the head-rotation estimator shares the detected-saccade A."""
+def _fit_estimators(pairs: Dict[str, tuple], d: Dict, fit_segments: Optional[List[tuple]] = None,
+                    tau_log: Optional[list] = None) -> Dict[str, np.ndarray]:
+    """
+    A per estimator; the head-rotation estimator shares the detected-saccade A. With
+    absolute estimates, "fused" gets that A and per-axis time constants chosen on
+    fit_segments, a list of (recording, windows, gain); the choice is appended to tau_log.
+    """
     A = {est: _fit_no_intercept(*pairs[est]) for est in ("saccades", "level")}
     if d.get("vor") is not None:
         A["saccades_vor"] = A["saccades"]
+    if d.get("absolute") is not None:
+        taus = _choose_taus(fit_segments or [], A["saccades"])
+        A["fused"] = (A["saccades"], taus)
+        if tau_log is not None:
+            tau_log.append(taus.tolist())
     return A
 
 
 def segment_error(d: Dict, windows: List[Dict], A: np.ndarray, gain: np.ndarray, estimator: str) -> np.ndarray:
     """Mean |estimate − target| over the scored samples of consecutive windows from one known start."""
+    if estimator == "fused":
+        A_saccades, taus = A
+        pred, target = _fused_predictions(d, windows, A_saccades, gain, tuple(taus))
+        return np.array([np.abs(pred[0, :, 0] - target[:, 0]).mean(), np.abs(pred[1, :, 1] - target[:, 1]).mean()])
     start, gaze0 = windows[0]["start"], windows[0]["gaze0"]
     idx = np.concatenate([w["scored"] for w in windows])
     disp = (_level_displacement if estimator == "level" else _saccade_displacement)(d, start, idx)
@@ -504,10 +573,15 @@ def _protocol_stats(data: List[Dict]) -> Dict[str, float]:
     return {k: float(np.mean([r[k] for r in rows])) for k in rows[0]}
 
 
-def run_known_start_protocol(trials: List[Trial]) -> Dict:
-    """Evaluate the paper's known-start protocol on continuous recordings with targets and ControlSignal."""
+def run_known_start_protocol(trials: List[Trial], absolute: Optional[Dict[tuple, np.ndarray]] = None) -> Dict:
+    """
+    Evaluate the paper's known-start protocol on continuous recordings with targets and
+    ControlSignal. `absolute` maps (subject_id, trial_id) to per-sample cross-subject gaze
+    estimates and adds the fused estimator.
+    """
     cfg = CFG.known_start
-    data = [prepare_recording(t) for t in trials
+    absolute = absolute or {}
+    data = [prepare_recording(t, absolute.get((t.subject_id, t.trial_id))) for t in trials
             if t.target_angle is not None and "ControlSignal" in t.channels and t.has_bipolar()]
     if not data:
         raise ValueError("Known-start protocol needs trials with target_angle, ControlSignal, H and V.")
@@ -517,8 +591,14 @@ def run_known_start_protocol(trials: List[Trial]) -> Dict:
     if not has_head:  # all recordings or none, so every subject has the same rows
         for d in data:
             d["vor"] = None
+    has_absolute = all(d["absolute"] is not None for d in data)
+    if not has_absolute:
+        for d in data:
+            d["absolute"] = None
     keys = ("short_saccades", "short_level", "long_saccades")
     keys += ("short_saccades_vor", "long_saccades_vor") if has_head else ()
+    keys += ("short_fused", "long_fused") if has_absolute else ()
+    tau_log = {fit: {"short": [], "long": []} for fit in ("same_subject", "unseen_subject")}
     ones = np.ones(2)
 
     same = {k: [] for k in keys}
@@ -528,8 +608,12 @@ def run_known_start_protocol(trials: List[Trial]) -> Dict:
             for fit_i, test_i in itertools.permutations(range(cfg.n_subsets), 2):
                 short_pairs = training_pairs(d, d["short"][fit_i], ones)
                 long_pairs = training_pairs(d, [w for seg in d["long"][fit_i] for w in seg], ones)
-                _evaluate(d, _fit_estimators(short_pairs, d), ones, d["short"][test_i], [], acc)
-                _evaluate(d, _fit_estimators(long_pairs, d), ones, [], d["long"][test_i], acc)
+                A_short = _fit_estimators(short_pairs, d, [(d, [w], ones) for w in d["short"][fit_i]],
+                                          tau_log["same_subject"]["short"])
+                A_long = _fit_estimators(long_pairs, d, [(d, seg, ones) for seg in d["long"][fit_i]],
+                                         tau_log["same_subject"]["long"])
+                _evaluate(d, A_short, ones, d["short"][test_i], [], acc)
+                _evaluate(d, A_long, ones, [], d["long"][test_i], acc)
         for k in keys:
             same[k].append(acc[k])
 
@@ -538,12 +622,16 @@ def run_known_start_protocol(trials: List[Trial]) -> Dict:
     for s in subjects:
         others = [d for o in subjects if o != s for d in by_subject[o]]
         pairs = [training_pairs(d, [w for part in d["short"] for w in part], gain[id(d)]) for d in others]
-        A = _fit_estimators({est: (np.vstack([p[est][0] for p in pairs]), np.vstack([p[est][1] for p in pairs]))
-                             for est in ("saccades", "level")}, others[0])
+        pooled = {est: (np.vstack([p[est][0] for p in pairs]), np.vstack([p[est][1] for p in pairs]))
+                  for est in ("saccades", "level")}
+        fit_short = [(o, [w], gain[id(o)]) for o in others for part in o["short"] for w in part] if has_absolute else None
+        fit_long = [(o, seg, gain[id(o)]) for o in others for part in o["long"] for seg in part] if has_absolute else None
+        A_short = _fit_estimators(pooled, others[0], fit_short, tau_log["unseen_subject"]["short"])
+        A_long = _fit_estimators(pooled, others[0], fit_long, tau_log["unseen_subject"]["long"])
         acc = {k: [] for k in keys}
         for d in by_subject[s]:
-            _evaluate(d, A, gain[id(d)], [w for part in d["short"] for w in part],
-                      [seg for part in d["long"] for seg in part], acc)
+            _evaluate(d, A_short, gain[id(d)], [w for part in d["short"] for w in part], [], acc)
+            _evaluate(d, A_long, gain[id(d)], [], [seg for part in d["long"] for seg in part], acc)
         for k in keys:
             unseen[k].append(acc[k])
 
@@ -557,7 +645,16 @@ def run_known_start_protocol(trials: List[Trial]) -> Dict:
         "protocol_stats": _protocol_stats(data),
         "same_subject": {k: _summary(v) for k, v in same.items()},
         "unseen_subject": {k: _summary(v) for k, v in unseen.items()},
+        **({"fusion_taus_sec": {fit: {length: _tau_counts(log) for length, log in logs.items()}
+                                for fit, logs in tau_log.items()}} if has_absolute else {}),
     }
+
+
+def _tau_counts(log: list) -> Dict[str, Dict[str, int]]:
+    """How often each time constant was chosen, per axis."""
+    arr = np.array(log, dtype=np.float64).reshape(-1, 2)
+    return {axis: {f"{tau:g}": int(np.sum(arr[:, i] == tau)) for tau in FUSION_TAUS_SEC if np.any(arr[:, i] == tau)}
+            for i, axis in enumerate(("h", "v"))}
 
 
 # ---------------------------------------------------------------------------
@@ -586,6 +683,8 @@ _ROW_LABELS = {
     "short_level": ("level change since start", "short 1-2 s"),
     "long_saccades": ("detected saccades", "long 32 s"),
     "long_saccades_vor": ("detected saccades + head rotation", "long 32 s"),
+    "short_fused": ("fused with cross-subject XGBoost", "short 1-2 s"),
+    "long_fused": ("fused with cross-subject XGBoost", "long 32 s"),
 }
 
 
@@ -610,12 +709,13 @@ def known_start_rows(results: Dict) -> List[Dict]:
     return rows
 
 
-def run_known_start(trials: List[Trial], results_dir: str = None) -> Dict:
+def run_known_start(trials: List[Trial], results_dir: str = None,
+                    absolute: Optional[Dict[tuple, np.ndarray]] = None) -> Dict:
     """Run the protocol, print the table, and save known_start_protocol.json + known_start_table.csv."""
     if results_dir is None:
         results_dir = CFG.paths.results
     os.makedirs(results_dir, exist_ok=True)
-    results = run_known_start_protocol(trials)
+    results = run_known_start_protocol(trials, absolute)
     with open(os.path.join(results_dir, "known_start_protocol.json"), "w") as f:
         json.dump(results, f, indent=2)
     rows = known_start_rows(results)
