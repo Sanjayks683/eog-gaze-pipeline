@@ -8,7 +8,7 @@ Result figures from the saved JSON files (nothing is retrained):
   known_start.png                 known-start errors per dataset against the published methods
   per_subject_fixation_mae.png    each subject's fixation MAE, reference vs context + range model
   range_stress_test.png           range features on Dataset 2 recordings with skewed gaze
-  nested_cv_candidates.png        every nested-CV combination scored on the outer test folds
+  nested_cv_candidates_<dataset>.png  every nested-CV combination scored on the outer test folds
 
     python scripts/make_figures.py
 
@@ -60,6 +60,12 @@ def _p(p: float) -> str:
     return "p < 0.001" if p < 0.001 else f"p = {p:.3f}"
 
 
+def _error_bars(means, sds) -> np.ndarray:
+    """(2, n) error bars that stop at zero (an SD larger than the mean would cross it)."""
+    means, sds = np.nan_to_num(np.asarray(means, dtype=float)), np.nan_to_num(np.asarray(sds, dtype=float))
+    return np.vstack([np.minimum(sds, means), sds])
+
+
 def _save(fig, name: str) -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
     fig.savefig(os.path.join(OUT_DIR, name), dpi=150, bbox_inches="tight")
@@ -86,10 +92,12 @@ def cross_dataset_fixation_mae() -> None:
     for ax, (key, name) in zip(axes, AXES):
         for i, (label, _, _) in enumerate(CROSS_DATASET_MODELS):
             rows = [results[d][i] or {} for d in present]
-            ax.bar(x + (i - (len(CROSS_DATASET_MODELS) - 1) / 2) * width,
-                   [r.get(f"fixation_mae_{key}_deg", np.nan) for r in rows], width,
-                   yerr=[r.get(f"fixation_mae_{key}_sd_deg", 0.0) for r in rows], capsize=2, label=label)
+            means = [r.get(f"fixation_mae_{key}_deg", np.nan) for r in rows]
+            sds = [r.get(f"fixation_mae_{key}_sd_deg", 0.0) for r in rows]
+            ax.bar(x + (i - (len(CROSS_DATASET_MODELS) - 1) / 2) * width, means, width,
+                   yerr=_error_bars(means, sds), capsize=2, label=label)
         ax.set_xticks(x, [_label(d) for d in present])
+        ax.set_xlim(-0.5, len(present) - 0.5)
         ax.set_ylabel(f"{name} fixation MAE (deg)")
         ax.grid(axis="y", alpha=0.3)
     axes[0].legend(fontsize=8)
@@ -99,29 +107,39 @@ def cross_dataset_fixation_mae() -> None:
 
 def known_start() -> None:
     results = {d: _load(*_experiment(d, "known_start"), "known_start_protocol.json") for d in DATASETS}
+    fusion = {d: _load("known_start_fusion", d, "known_start_protocol.json") for d in DATASETS}
     if not any(results.values()):
         raise FileNotFoundError("no known-start results")
-    fig, axes = plt.subplots(2, 2, figsize=(12, 7.5))
-    x, width = np.arange(len(DATASETS)), 0.27
-    for row, (segment_key, segment) in enumerate((("short_saccades", "short 1-2 s"), ("long_saccades", "long 32 s"))):
+    ours = (("This pipeline: detected saccades", results, "saccades"),
+            ("+ head rotation (Dataset 3)", results, "saccades_vor"),
+            ("Fused with cross-subject XGBoost", fusion, "fused"))
+    published_labels = (("Kalman", "Published: dual Kalman filter (+ VOR model on Dataset 3)"),
+                        ("differencing", "Published: signal differencing"))
+    n_bars = len(ours) + len(published_labels)
+    fig, axes = plt.subplots(2, 2, figsize=(13, 7.5))
+    x, width = np.arange(len(DATASETS)), 0.8 / n_bars
+    offsets = (np.arange(n_bars) - (n_bars - 1) / 2) * width
+    for row, (length, segment) in enumerate((("short", "short 1-2 s"), ("long", "long 32 s"))):
         for col, (key, name) in enumerate(AXES):
             ax = axes[row, col]
-            ours = [(results[d] or {}).get("same_subject", {}).get(segment_key) for d in DATASETS]
-            published = {"Kalman": [np.nan] * len(DATASETS), "differencing": [np.nan] * len(DATASETS)}
-            for j, d in enumerate(DATASETS):
-                for method, segments, h, v, _ in PAPER_KNOWN_START.get(d, []):
-                    if segments == segment:
-                        published["Kalman" if "Kalman" in method else "differencing"][j] = h if key == "h" else v
-            ax.bar(x - width, [o[f"excluded_mae_{key}_deg"] if o else np.nan for o in ours], width,
-                   yerr=[o[f"excluded_mae_{key}_sd_deg"] if o else 0.0 for o in ours], capsize=2,
-                   label="This pipeline: detected saccades")
-            ax.bar(x, published["Kalman"], width, label="Published: dual Kalman filter (+ VOR model on Dataset 3)")
-            ax.bar(x + width, published["differencing"], width, label="Published: signal differencing")
+            for i, (label, source, estimator) in enumerate(ours):
+                rows = [(source[d] or {}).get("same_subject", {}).get(f"{length}_{estimator}") for d in DATASETS]
+                means = [r[f"excluded_mae_{key}_deg"] if r else np.nan for r in rows]
+                sds = [r[f"excluded_mae_{key}_sd_deg"] if r else 0.0 for r in rows]
+                ax.bar(x + offsets[i], means, width, yerr=_error_bars(means, sds), capsize=2, label=label)
+            for i, (kind, label) in enumerate(published_labels, start=len(ours)):
+                values = [np.nan] * len(DATASETS)
+                for j, d in enumerate(DATASETS):
+                    for method, segments, h, v, _ in PAPER_KNOWN_START.get(d, []):
+                        if segments == segment and kind in method:
+                            values[j] = h if key == "h" else v
+                ax.bar(x + offsets[i], values, width, label=label, hatch="//", alpha=0.8)
             ax.set_xticks(x, [_label(d) for d in DATASETS])
+            ax.set_xlim(-0.5, len(DATASETS) - 0.5)
             ax.set_title(f"{segment}, {name}")
             ax.set_ylabel("fixation MAE (deg)")
             ax.grid(axis="y", alpha=0.3)
-    axes[0, 0].legend(fontsize=8)
+    axes[1, 1].legend(fontsize=8)
     fig.suptitle("Known-start task, same subject, outlier segments dropped (published results exist for "
                  "Datasets 2 and 3 only)")
     fig.tight_layout()
@@ -195,10 +213,15 @@ def range_stress_test() -> None:
 
 
 def nested_cv_candidates() -> None:
-    tracks = [(t, _load("nested_cv", "dataset2", t, "nested_cv_results.json")) for t in ("realtime", "offline")]
+    if not [dataset for dataset in DATASETS if _nested_cv_figure(dataset)]:
+        raise FileNotFoundError("no nested-CV results")
+
+
+def _nested_cv_figure(dataset: str) -> bool:
+    tracks = [(t, _load("nested_cv", dataset, t, "nested_cv_results.json")) for t in ("realtime", "offline")]
     tracks = [(t, r) for t, r in tracks if r]
     if not tracks:
-        raise FileNotFoundError("no nested-CV results")
+        return False
     windows = ("30", "60", "120")
     rows = [(f, tw) for f in ("engineered", "context", "range") for tw in ("all", "weighted", "fixation")]
     fig, axes = plt.subplots(1, len(tracks), figsize=(6.5 * len(tracks), 5), squeeze=False)
@@ -217,13 +240,14 @@ def nested_cv_candidates() -> None:
         ax.set_xlabel("drift-baseline window")
         ax.set_yticks(range(len(rows)), [f"{'+ context + range' if f == 'range' else '+ context' if f == 'context' else f}, "
                                          f"{tw} windows" for f, tw in rows])
-        ax.set_title(f"Dataset 2 {'real-time' if track == 'realtime' else 'offline'}: "
+        ax.set_title(f"{_label(dataset)} {'real-time' if track == 'realtime' else 'offline'}: "
                      "mean H/V fixation MAE (deg)", fontsize=10)
         fig.colorbar(image, ax=ax, shrink=0.8)
     fig.suptitle("Nested cross-validation: every combination scored on the outer test folds, "
                  "and how often the inner loop picked it")
     fig.tight_layout()
-    _save(fig, "nested_cv_candidates.png")
+    _save(fig, f"nested_cv_candidates_{dataset}.png")
+    return True
 
 
 def main() -> None:

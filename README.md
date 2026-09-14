@@ -724,13 +724,19 @@ the p-values are not corrected for multiple comparisons. The reference is always
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | Dataset 2 real-time, nested selection | 10 | 1.17 / 0.76 | 0.51 – 2.00 | 0.52 – 1.01 | 9 / 10 | 0.010 / 0.002 |
 | Dataset 2 offline, nested selection | 10 | 0.64 / 0.11 | 0.37 – 0.89 | −0.13 – 0.31 | 9 / 7 | 0.004 / 0.19 |
+| Dataset 1, + context + range, weighted | 6 | 1.52 / 1.26 | 1.24 – 1.75 | 0.78 – 1.83 | 6 / 6 | 0.031 / 0.031 |
+| Dataset 1, + context + range, fixation windows | 6 | 1.69 / 1.19 | 1.32 – 2.01 | 0.73 – 1.71 | 6 / 6 | 0.031 / 0.031 |
 | Dataset 3, + context + range, weighted | 8 | 0.23 / 0.22 | −0.04 – 0.50 | −0.48 – 0.81 | 6 / 5 | 0.20 / 0.38 |
 | Dataset 3, + context + range, fixation windows | 8 | 0.37 / 0.32 | 0.07 – 0.67 | −0.31 – 0.85 | 6 / 5 | 0.078 / 0.38 |
 | Dataset 4, + context + range, weighted | 14 | 0.58 / 0.70 | 0.49 – 0.66 | 0.59 – 0.81 | 14 / 14 | < 0.001 / < 0.001 |
 | Dataset 4, + context + range, fixation windows | 14 | 0.79 / 0.76 | 0.70 – 0.89 | 0.64 – 0.87 | 14 / 14 | < 0.001 / < 0.001 |
 
-- **Consistent across subjects:** on Dataset 2 real-time and on Dataset 4, the improvement holds on
-  both axes. All 14 Dataset 4 subjects and 9–10 of the 10 Dataset 2 subjects improve.
+- **Consistent across subjects:** on Datasets 1 and 4 and on Dataset 2 real-time, the improvement
+  holds on both axes.
+  - **Dataset 1:** all 6 subjects improve. p = 0.031 is the smallest p-value a Wilcoxon test can give
+    with 6 subjects.
+  - **Dataset 4:** all 14 subjects improve.
+  - **Dataset 2:** 9–10 of the 10 subjects improve.
 - **Offline on Dataset 2, the gain is horizontal only.** Vertical error barely changes (7 of 10
   subjects improve; the confidence interval includes 0).
 - **Dataset 3 is not significant.** 5–6 of 8 subjects improve, and only the fixation-window model's
@@ -762,6 +768,22 @@ on the test part. Test parts are never trained on.
   protocol.
 - Results: `reports/experiments/within_subject/dataset2/within_subject.json`; paired tests in
   `reports/experiments/statistics/statistics.json`.
+
+### Result figures
+
+`python scripts/make_figures.py` redraws these from the saved JSON files in `reports/figures/results/`:
+
+![Known-start errors per dataset against the published methods](reports/figures/results/known_start.png)
+
+- `known_start.png` (above): known-start errors per dataset (detected saccades, with head rotation,
+  and fused with cross-subject XGBoost) against the published methods.
+- `cross_dataset_fixation_mae.png`: real-time fixation MAE per dataset for the mean-angle baseline,
+  XGBoost, and XGBoost with context + range features.
+- `per_subject_fixation_mae.png`: each subject's fixation MAE with and without context + range
+  features, with Wilcoxon p-values.
+- `range_stress_test.png`: the range features on Dataset 2 recordings with skewed gaze.
+- `nested_cv_candidates_<dataset>.png`: every nested-CV combination scored on the outer folds, and
+  how often the inner loop picked it.
 
 ---
 
