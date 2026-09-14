@@ -423,8 +423,14 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
   (18 channels), chin rest. Every trial goes from the centre to a 12° target in one of 36
   directions, back to the centre, then a blink, so targets are small and half are at the centre.
 - **Dataset 3 (Monopolar Non-Stationary):** 8 subjects with Dataset 2's electrodes and trial
-  timing, but free head movement, and the target angle moves with the head. **No head-pose
-  compensation yet** (it needs the Part 2 paper, BSPC 90, 2024), so these are reference numbers.
+  timing, but free head movement. The target angles are given in a face frame that turns with the
+  head, so head pose is already part of the targets. What nothing here models is the slow
+  vestibulo-ocular (VOR) eye rotation that counters head movement: it moves the gaze without a
+  saccade, so the detected-saccade estimator misses it and a drift baseline can absorb it. The
+  Dataset 3 paper (Barbara et al., BSPC 90, 2024) adds a VOR model to its dual Kalman filter.
+- **Published numbers:** the Dataset 3 paper reports the known-start task only (within-subject,
+  outliers dropped), listed below. The Dataset 4 paper (BSPC 112, 2026) reports per-saccade
+  displacement errors in figures only, a different measure, so it has no row here.
 
 | Real-time; 5-fold cross-subject unless noted | Dataset 4 fixation MAE H / V | Dataset 4 RMSE H / V | Dataset 3 fixation MAE H / V | Dataset 3 RMSE H / V |
 | :--- | :---: | :---: | :---: | :---: |
@@ -434,7 +440,13 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 | + context + range, XGBoost, weighted training | 1.33 / 1.56 | 2.26 / 2.48 | 4.42 / 4.46 | 6.18 / 5.84 |
 | + context + range, XGBoost, fixation windows only | 1.11 / 1.51 | 3.12 / 3.37 | 4.28 / 4.36 | 7.04 / 6.27 |
 | Known start, same subject, short (detected saccades) | 0.54 / 1.21 | — | 2.72 / 1.97 | — |
+| … outlier segments dropped | 0.47 / 1.03 | — | 2.67 / 1.73 | — |
+| *Published: dual Kalman filter + VOR model, short* | — | — | 1.85 ± 0.51 / 2.19 ± 0.62 | — |
+| *Published: signal differencing, short* | — | — | 3.59 ± 0.74 / 2.52 ± 0.62 | — |
 | Known start, same subject, long 32 s (detected saccades) | 2.26 / 9.69 | — | 8.04 / 13.02 | — |
+| … outlier segments dropped | 2.02 / 9.69 | — | 7.67 / 12.67 | — |
+| *Published: dual Kalman filter + VOR model, long* | — | — | 4.64 ± 1.37 / 6.10 ± 2.58 | — |
+| *Published: signal differencing, long* | — | — | 8.13 ± 1.15 / 11.25 ± 5.03 | — |
 
 - **Context and range features with weighted training help on both datasets:** XGBoost's fixation
   MAE drops from 1.90 / 2.26 to 1.33 / 1.56° on Dataset 4 and from 4.65 / 4.67 to 4.42 / 4.46° on
@@ -450,7 +462,15 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 - **Dataset 3 keeps a smaller share of the gain:** weighted XGBoost removes 50% / 29% of the
   mean-angle error versus 65% / 45% on Dataset 2, and long known-start segments reach
   8.04 / 13.02°. Free head movement is the obvious suspect, but Dataset 3 also has fewer subjects (8)
-  and its head movement is not compensated yet, so the cause is not isolated.
+  and nothing here models the VOR eye movements that come with head movement, so the cause is not
+  isolated.
+- **Known start against the Dataset 3 paper** (outliers dropped; the paper drops 7.77% of short and
+  3.91% of long segments, this evaluation 2.8% and 3.4%): on short segments, horizontal error
+  (2.67°) lies between the paper's Kalman filter with VOR model (1.85°) and signal differencing
+  (3.59°), and vertical error (1.73°) is below both (2.19 / 2.52°). On long segments, horizontal
+  error (7.67°) is just below signal differencing (8.13°) but well above the Kalman filter (4.64°),
+  and vertical error (12.67 ± 14.92°) is above both (6.10 / 11.25°). The VOR model is the main
+  thing this estimator lacks.
 - **Known start, long segments, vertical:** blinks the detector misses leave a lasting vertical
   offset that keeps adding up (1.9% of labelled blinks counted as eye
   movements on Dataset 4, 5.1% on Dataset 3).
@@ -474,7 +494,7 @@ model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curve
 | `dataset2_context_causal{,_fixation}.yaml`, `dataset2_context_centred_fixation.yaml` | `reports/experiments/context_*/` | Context features |
 | `dataset2_range_causal{,_weighted,_fixation}.yaml`, `dataset2_range_centred_{fixation,weighted}.yaml` | `reports/experiments/range_*/` | Context + rolling-range features; training-window choice |
 | `dataset2_known_start.yaml` | `reports/experiments/known_start/` | The paper's known-start protocol (separate task) |
-| `dataset3_robust_line_causal.yaml` | `reports/experiments/dataset3/robustline60_causal/` | Dataset 3 real-time baseline (no head-pose compensation) |
+| `dataset3_robust_line_causal.yaml` | `reports/experiments/dataset3/robustline60_causal/` | Dataset 3 real-time baseline (no VOR model) |
 | `dataset3_range_causal_{weighted,fixation}.yaml` | `reports/experiments/dataset3/range_causal_*/` | Dataset 3 with the best Dataset 2 setup |
 | `dataset3_known_start.yaml` | `reports/experiments/dataset3/known_start/` | Dataset 3 known-start protocol |
 | `dataset4_robust_line_causal.yaml` | `reports/experiments/dataset4/robustline60_causal/` | Dataset 4 real-time baseline (18 channels) |

@@ -96,8 +96,12 @@ def test_master_table_lists_published_numbers_only_for_the_loaded_dataset(tmp_pa
     assert _detect_dataset_label() == "Dataset 2 only"
     assert len(published(build_master_table(results_dir=str(tmp_path)))) == 4
 
+    CFG.data.datasets_to_load = ["dataset3"]
+    rows = published(build_master_table(results_dir=str(tmp_path)))
+    assert len(rows) == 4 and all(r["dataset"] == "Dataset 3" for r in rows)
 
-def test_known_start_table_lists_published_numbers_only_for_dataset2():
+
+def test_known_start_table_lists_published_numbers_only_for_their_dataset():
     from src.evaluation.known_start import known_start_rows
 
     keys = ("mae_h_deg", "mae_v_deg", "mae_h_sd_deg", "mae_v_sd_deg",
@@ -107,7 +111,10 @@ def test_known_start_table_lists_published_numbers_only_for_dataset2():
     published = lambda rows: [r for r in rows if r["method"].startswith("Published")]
 
     assert len(published(known_start_rows({**base, "datasets": ["dataset2"]}))) == 4
+    dataset3 = published(known_start_rows({**base, "datasets": ["dataset3"]}))
+    assert len(dataset3) == 4 and any("VOR" in r["method"] for r in dataset3)
     assert published(known_start_rows({**base, "datasets": ["dataset4"]})) == []
+    assert published(known_start_rows({**base, "datasets": ["dataset2", "dataset3"]})) == []
 
 
 def test_xgb_device_is_passed_only_when_it_is_not_the_cpu(restore_cfg):

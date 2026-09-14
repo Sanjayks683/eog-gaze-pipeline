@@ -2,9 +2,9 @@
 # ========================================
 # Dataset 3 (Monopolar Non-Stationary: 8 subjects, free head movement), real-time
 # baseline with the settings of dataset2_robust_line_causal.yaml.
-# No head-pose compensation yet: EOG measures the eye-in-head angle, and whether the
-# target stream already accounts for head pose is defined in the Part 2 paper
-# (Barbara et al., BSPC 90, 2024). This is the reference run for that work.
+# The target gaze angles are defined in a face frame that rotates with the head
+# (Barbara et al., BSPC 90, 2024), so they already account for head pose. What this
+# pipeline does not model is the slow vestibulo-ocular eye movement during head turns.
 # Kernel SVC/SVR are skipped (CPU-only); the random forest runs on the CPU, XGBoost
 # (cv.xgb_device) and the deep model on the GPU.
 #

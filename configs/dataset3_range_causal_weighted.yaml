@@ -1,8 +1,8 @@
 # configs/dataset3_range_causal_weighted.yaml
 # ===========================================
 # Dataset 3, real-time: the best all-round Dataset 2 setup
-# (dataset2_range_causal_weighted.yaml) without head-pose compensation; see
-# dataset3_robust_line_causal.yaml. SVC/SVR skipped, XGBoost on the GPU.
+# (dataset2_range_causal_weighted.yaml); see dataset3_robust_line_causal.yaml for how
+# head movement is handled. SVC/SVR skipped, XGBoost on the GPU.
 #
 #   python main.py --config configs/dataset3_range_causal_weighted.yaml --phase preprocess
 #   python main.py --config configs/dataset3_range_causal_weighted.yaml --phase train_classical

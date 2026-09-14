@@ -4,3 +4,7 @@ Baseline: train-fold mean angle,Dataset 3 only,10.728084696106846,7.283958798564
 Classical ML (RF) — classification,Dataset 3 only,,,,,,,0.5457273398350995,
 Classical ML (XGB) — regression,Dataset 3 only,6.176599630509126,5.836263338565188,4.7771148681640625,4.626658916473389,4.419982297393423,4.459617245287207,,"trained on all windows, non-fixation windows weighted 0.2"
 Deep multi-task,—,,,,,,,,Run Phase 7 to generate deep_model_<type>.json
+Published: Barbara_2024_DKF_VOR_short,Dataset 3,,,,,1.85,2.19,,BSPC 90 (2024) Table 2: ±0.51 / ±0.62; within-subject; 7.77% outliers excluded
+Published: Barbara_2024_DKF_VOR_long,Dataset 3,,,,,4.64,6.1,,BSPC 90 (2024) Table 3: ±1.37 / ±2.58; within-subject; 3.91% outliers excluded
+Published: Barbara_2024_differencing_short,Dataset 3,,,,,3.59,2.52,,BSPC 90 (2024) Table 2 state of the art: ±0.74 / ±0.62
+Published: Barbara_2024_differencing_long,Dataset 3,,,,,8.13,11.25,,BSPC 90 (2024) Table 3 state of the art: ±1.15 / ±5.03

@@ -1,7 +1,7 @@
 # configs/dataset3_range_causal_fixation.yaml
 # ===========================================
 # Dataset 3, real-time: dataset3_range_causal_weighted.yaml, but the regressors are
-# fit on fixation windows only. No head-pose compensation; XGBoost on the GPU.
+# fit on fixation windows only. XGBoost on the GPU.
 # Reuses the range_causal processed data: run only train_classical and compare
 # after dataset3_range_causal_weighted.yaml has been preprocessed.
 #

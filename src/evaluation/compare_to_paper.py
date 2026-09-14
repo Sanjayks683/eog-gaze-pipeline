@@ -67,14 +67,36 @@ PAPER_RESULTS = {
         "fixation_mae_h_deg": 5.82, "fixation_mae_v_deg": 8.04,
         "notes": "BSPC 86 (2023) Table 3 state of the art: ±2.70 / ±2.96; same protocol as DKF long",
     },
-    "Barbara_2024_BSPC": {
-        "description": "Real-time EOG gaze estimation, non-stationary head",
+    # Barbara et al., BSPC vol.90 (2024) 105868, Tables 2-3: same metric and within-subject
+    # known-start protocol as BSPC 86, with free head movement. Gaze angles are defined in a
+    # face frame that rotates with the head. Outlier segments excluded: 7.77% short, 3.91% long.
+    "Barbara_2024_DKF_VOR_short": {
+        "description": "Dual Kalman filter with a VOR model, 1 s saccade / 2 s blink segments",
         "dataset": "Dataset 3",
-        "rmse_h_deg": None,
-        "rmse_v_deg": None,
-        "mae_h_deg": None,
-        "mae_v_deg": None,
-        "notes": "Fill from: Barbara et al., BSPC vol.90, Apr.2024",
+        "rmse_h_deg": None, "rmse_v_deg": None, "mae_h_deg": None, "mae_v_deg": None,
+        "fixation_mae_h_deg": 1.85, "fixation_mae_v_deg": 2.19,
+        "notes": "BSPC 90 (2024) Table 2: ±0.51 / ±0.62; within-subject; 7.77% outliers excluded",
+    },
+    "Barbara_2024_DKF_VOR_long": {
+        "description": "Dual Kalman filter with a VOR model, 32 s segments (8 trials)",
+        "dataset": "Dataset 3",
+        "rmse_h_deg": None, "rmse_v_deg": None, "mae_h_deg": None, "mae_v_deg": None,
+        "fixation_mae_h_deg": 4.64, "fixation_mae_v_deg": 6.10,
+        "notes": "BSPC 90 (2024) Table 3: ±1.37 / ±2.58; within-subject; 3.91% outliers excluded",
+    },
+    "Barbara_2024_differencing_short": {
+        "description": "Signal differencing + 2-channel linear regression [BSPC 47, 2019], as run in BSPC 90",
+        "dataset": "Dataset 3",
+        "rmse_h_deg": None, "rmse_v_deg": None, "mae_h_deg": None, "mae_v_deg": None,
+        "fixation_mae_h_deg": 3.59, "fixation_mae_v_deg": 2.52,
+        "notes": "BSPC 90 (2024) Table 2 state of the art: ±0.74 / ±0.62",
+    },
+    "Barbara_2024_differencing_long": {
+        "description": "Signal differencing + 2-channel linear regression [BSPC 47, 2019], as run in BSPC 90",
+        "dataset": "Dataset 3",
+        "rmse_h_deg": None, "rmse_v_deg": None, "mae_h_deg": None, "mae_v_deg": None,
+        "fixation_mae_h_deg": 8.13, "fixation_mae_v_deg": 11.25,
+        "notes": "BSPC 90 (2024) Table 3 state of the art: ±1.15 / ±5.03",
     },
     "Barbara_BSPC_Isotropic": {
         "description": "Bipolar channel selection, isotropic directions",
@@ -83,7 +105,8 @@ PAPER_RESULTS = {
         "rmse_v_deg": None,
         "mae_h_deg": None,
         "mae_v_deg": None,
-        "notes": "Fill from: Barbara et al., BSPC (systematic quantitative analysis)",
+        "notes": "Barbara et al., BSPC 112 (2026) 108585: per-saccade gaze displacement errors, "
+                 "given only in figures (no gaze-angle numbers to list)",
     },
 }
 
