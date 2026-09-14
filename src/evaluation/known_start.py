@@ -23,11 +23,10 @@ Protocol, as in the paper:
   * Same subject: parameters fitted on one part, tested on another, all orderings.
     Unseen subject (not in the paper): fitted on the other subjects, with each
     subject's displacements divided by a label-free gain.
-  * Outliers: the paper drops segments with "substantially high" error, naming
-    blinks mislabelled as saccades as a cause. Here segments are excluded without
-    looking at their error: those where the estimator's blink decisions disagree
-    with the ground-truth labels (a labelled blink counted as an eye movement, or a
-    labelled response saccade in a blink-free window dropped as a blink).
+  * Outliers: the paper drops segments with "substantially high" error without
+    giving a threshold. Here a segment is an outlier when its horizontal or vertical
+    error lies beyond Tukey's far-out fence, Q3 + outlier_iqr_factor x IQR, computed
+    per subject and per segment kind. Results are reported with and without them.
 
 Estimators (both see only the EOG and the starting gaze; A is a 2-channel H/V
 linear map without intercept, as in Barbara et al., BSPC 47, 2019):
@@ -371,10 +370,15 @@ def _evaluate(d: Dict, A: Dict[str, np.ndarray], gain: np.ndarray, short_windows
               long_segments: List[List[Dict]], acc: Dict[str, list]) -> None:
     for w in short_windows:
         for est in ("saccades", "level"):
-            acc[f"short_{est}"].append((segment_error(d, [w], A[est], gain, est), w["disagrees"], w["kind"]))
+            acc[f"short_{est}"].append((segment_error(d, [w], A[est], gain, est), w["kind"]))
     for seg in long_segments:
-        acc["long_saccades"].append((segment_error(d, seg, A["saccades"], gain, "saccades"),
-                                     any(w["disagrees"] for w in seg), "segment"))
+        acc["long_saccades"].append((segment_error(d, seg, A["saccades"], gain, "saccades"), "segment"))
+
+
+def _outliers(errs: np.ndarray) -> np.ndarray:
+    """Segments whose H or V error lies beyond Tukey's far-out fence, Q3 + k x IQR."""
+    q1, q3 = np.percentile(errs, [25, 75], axis=0)
+    return np.any(errs > q3 + CFG.known_start.outlier_iqr_factor * (q3 - q1), axis=1)
 
 
 def _summary(per_subject: List[list]) -> Dict[str, float]:
@@ -383,9 +387,11 @@ def _summary(per_subject: List[list]) -> Dict[str, float]:
     for segments in per_subject:
         if not segments:
             continue
-        errs = np.array([e for e, _, _ in segments])
-        flags = np.array([f for _, f, _ in segments])
-        kinds = np.array([k for _, _, k in segments])
+        errs = np.array([e for e, _ in segments])
+        kinds = np.array([k for _, k in segments])
+        flags = np.zeros(len(errs), dtype=bool)
+        for kind in np.unique(kinds):  # blink windows score near 0, so fence each kind separately
+            flags[kinds == kind] = _outliers(errs[kinds == kind])
         full.append(errs.mean(axis=0))
         kept.append(errs[~flags].mean(axis=0) if (~flags).any() else errs.mean(axis=0))
         for kind, values in by_kind.items():
@@ -500,12 +506,21 @@ def run_known_start_protocol(trials: List[Trial]) -> Dict:
 # Reporting
 # ---------------------------------------------------------------------------
 
-PAPER_KNOWN_START = [
-    ("Published: dual Kalman filter", "short 1-2 s", 1.64, 1.97, 0.0685),
-    ("Published: signal differencing [BSPC 47, 2019]", "short 1-2 s", 1.51, 1.95, 0.0685),
-    ("Published: dual Kalman filter", "long 32 s", 5.23, 6.59, 0.0583),
-    ("Published: signal differencing [BSPC 47, 2019]", "long 32 s", 5.82, 8.04, 0.0583),
-]
+# Published known-start results: (method, segments, fixation MAE H, V, excluded outlier share).
+PAPER_KNOWN_START = {
+    "dataset2": [  # Barbara et al., BSPC 86 (2023), Tables 2-3
+        ("Published: dual Kalman filter", "short 1-2 s", 1.64, 1.97, 0.0685),
+        ("Published: signal differencing [BSPC 47, 2019]", "short 1-2 s", 1.51, 1.95, 0.0685),
+        ("Published: dual Kalman filter", "long 32 s", 5.23, 6.59, 0.0583),
+        ("Published: signal differencing [BSPC 47, 2019]", "long 32 s", 5.82, 8.04, 0.0583),
+    ],
+    "dataset3": [  # Barbara et al., BSPC 90 (2024), Tables 2-3
+        ("Published: dual Kalman filter + VOR model", "short 1-2 s", 1.85, 2.19, 0.0777),
+        ("Published: signal differencing [BSPC 47, 2019]", "short 1-2 s", 3.59, 2.52, 0.0777),
+        ("Published: dual Kalman filter + VOR model", "long 32 s", 4.64, 6.10, 0.0391),
+        ("Published: signal differencing [BSPC 47, 2019]", "long 32 s", 8.13, 11.25, 0.0391),
+    ],
+}
 
 _ROW_LABELS = {
     "short_saccades": ("detected saccades", "short 1-2 s"),
@@ -524,8 +539,8 @@ def known_start_rows(results: Dict) -> List[Dict]:
                          "mae_h_sd_deg": r["mae_h_sd_deg"], "mae_v_sd_deg": r["mae_v_sd_deg"],
                          "excluded_mae_h_deg": r["excluded_mae_h_deg"], "excluded_mae_v_deg": r["excluded_mae_v_deg"],
                          "excluded_fraction": r["excluded_fraction"]})
-    # The published numbers are for Dataset 2 only.
-    published = PAPER_KNOWN_START if results.get("datasets") == ["dataset2"] else []
+    datasets = results.get("datasets", [])
+    published = PAPER_KNOWN_START.get(datasets[0], []) if len(datasets) == 1 else []
     for method, segments, h, v, frac in published:
         rows.append({"method": method, "fit": "same subject", "segments": segments,
                      "mae_h_deg": None, "mae_v_deg": None, "mae_h_sd_deg": None, "mae_v_sd_deg": None,

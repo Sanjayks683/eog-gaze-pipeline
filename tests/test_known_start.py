@@ -154,3 +154,20 @@ def test_known_start_protocol_rejects_trials_without_targets():
     trial.target_angle = None
     with pytest.raises(ValueError, match="target_angle"):
         run_known_start_protocol([trial])
+
+
+def test_outlier_segments_are_those_beyond_the_far_out_fence(restore_cfg):
+    from src.evaluation.known_start import _summary
+
+    rng = np.random.RandomState(0)
+    segments = [(np.abs(rng.normal(1.0, 0.1, 2)), "saccade") for _ in range(39)]
+    segments.append((np.array([9.0, 1.0]), "saccade"))
+    # blink windows score about 0; fenced separately, they must not make saccade windows outliers
+    segments += [(np.abs(rng.normal(0.0, 0.01, 2)), "blink") for _ in range(20)]
+
+    summary = _summary([segments])
+
+    assert summary["excluded_fraction"] == pytest.approx(1 / 60)
+    kept_h = [e[0] for e, k in segments[:39]] + [e[0] for e, k in segments[40:]]
+    assert summary["excluded_mae_h_deg"] == pytest.approx(np.mean(kept_h))
+    assert summary["mae_h_deg"] > summary["excluded_mae_h_deg"]

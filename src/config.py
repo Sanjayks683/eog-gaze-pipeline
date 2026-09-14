@@ -190,6 +190,9 @@ class KnownStartConfig:
     premature_ms: float = 150.0       # a saccade starting this close to the window end is premature
     blink_margin_ms: float = 150.0    # saccade-labelled strokes this close to a labelled blink belong to it
     min_scored_ms: float = 50.0       # windows need at least this many fixation samples to be scored
+    # Outlier segments: H or V error beyond Q3 + outlier_iqr_factor x IQR (Tukey's far-out
+    # fence), per subject and segment kind. The paper only says "substantially high" error.
+    outlier_iqr_factor: float = 3.0
     n_subsets: int = 3
     short_saccade_windows: int = 66   # per subset, as in the paper
     short_blink_windows: int = 33

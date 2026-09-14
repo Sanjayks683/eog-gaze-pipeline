@@ -362,11 +362,11 @@ It writes `reports/experiments/known_start/known_start_protocol.json` and `known
 - **Same subject:** fit on one third, test on another, all 6 orderings. **Unseen subject** (not
   in the paper): fit on the other 9 subjects, with each subject's displacements divided by a
   label-free gain.
-- **Outliers:** the paper drops segments with "substantially high" error. Here segments are
-  dropped without looking at their error: those where the estimator's blink decisions contradict
-  the labels (a labelled blink counted as an eye movement, or a response saccade in a blink-free
-  window dropped as a blink), the cause the paper names for its outliers. This drops 0.3% of short
-  and 7.1% of long segments (paper: 6.85% and 5.83%).
+- **Outliers:** the paper drops segments with "substantially high" error but gives no threshold.
+  Here a segment is dropped when its H or V error lies beyond Tukey's far-out fence,
+  Q3 + 3 × IQR, of that subject's segments of the same kind (saccade windows, blink windows or
+  long segments; blink windows are fenced separately because they mostly score near 0). With
+  detected saccades this drops 1.6% of short and 4.8% of long segments (paper: 6.85% and 5.83%).
 
 **Estimators** (EOG and starting gaze only; a 2-channel H/V linear map without intercept, like
 the paper's comparison method [BSPC 47, 2019]):
@@ -376,36 +376,37 @@ the paper's comparison method [BSPC 47, 2019]):
   and 95% of its detections follow a cue.
 - *Level change*: the EOG change since the segment start (short segments only).
 
-| Known-start task, MAE H / V (deg) | Fit | All segments | Label-disagreement segments dropped |
+| Known-start task, MAE H / V (deg) | Fit | All segments | Outlier segments dropped |
 | :--- | :--- | :---: | :---: |
-| Short, detected saccades | same subject | 1.17 ± 0.49 / 1.39 ± 0.27 | 1.11 ± 0.47 / 1.38 ± 0.26 |
+| Short, detected saccades | same subject | 1.17 ± 0.49 / 1.39 ± 0.27 | 0.92 ± 0.49 / 1.33 ± 0.24 |
 | … saccade windows only | same subject | 1.75 / 2.09 | — |
-| Short, level change | same subject | 1.47 ± 0.61 / 2.37 ± 0.60 | 1.47 ± 0.61 / 2.36 ± 0.59 |
-| Short, detected saccades | unseen subject | 1.34 ± 0.46 / 1.82 ± 0.54 | 1.28 ± 0.47 / 1.81 ± 0.54 |
+| Short, level change | same subject | 1.47 ± 0.61 / 2.37 ± 0.60 | 1.28 ± 0.62 / 2.25 ± 0.60 |
+| Short, detected saccades | unseen subject | 1.34 ± 0.46 / 1.82 ± 0.54 | 1.11 ± 0.46 / 1.77 ± 0.54 |
 | … saccade windows only | unseen subject | 2.02 / 2.73 | — |
 | *Published: dual Kalman filter, short* | same subject | — | 1.64 ± 0.82 / 1.97 ± 0.34 |
 | *Published: signal differencing, short* | same subject | — | 1.51 ± 0.55 / 1.95 ± 0.29 |
-| Long 32 s, detected saccades | same subject | 4.71 ± 1.59 / 8.39 ± 3.13 | 4.34 ± 1.35 / 8.35 ± 3.20 |
-| Long 32 s, detected saccades | unseen subject | 4.91 ± 1.41 / 8.73 ± 3.63 | 4.55 ± 1.19 / 8.69 ± 3.66 |
+| Long 32 s, detected saccades | same subject | 4.71 ± 1.59 / 8.39 ± 3.13 | 4.21 ± 1.81 / 8.36 ± 3.29 |
+| Long 32 s, detected saccades | unseen subject | 4.91 ± 1.41 / 8.73 ± 3.63 | 4.45 ± 1.52 / 8.77 ± 3.70 |
 | *Published: dual Kalman filter, long* | same subject | — | 5.23 ± 2.00 / 6.59 ± 3.10 |
 | *Published: signal differencing, long* | same subject | — | 5.82 ± 2.70 / 8.04 ± 2.96 |
 
 **How close it gets:**
 
-- **Short segments: comparable, not clearly better.** The combined score (1.17 / 1.39°) is below
-  both published methods, but a third of the short windows are blink windows. There the target
-  does not move, and once the blink is rejected this estimator scores exactly 0. On saccade
-  windows alone it scores 1.75 / 2.09°, about the paper's combined numbers. The paper does not
-  report that split, so how much its own blink windows lower its score is unknown.
-- **Long segments:** horizontal error is lower than both published methods (4.34 vs 5.23 /
-  5.82° after exclusion), vertical error is higher than both (8.35 vs 6.59 / 8.04°). Summing
+- **Short segments: comparable, not clearly better.** The combined score (0.92 / 1.33° after
+  dropping outliers, 1.17 / 1.39° with none dropped) is below both published methods, but a third
+  of the short windows are blink windows. There the target does not move, and once the blink is
+  rejected this estimator scores exactly 0. On saccade windows alone it scores 1.75 / 2.09° with
+  no segments dropped, about the paper's combined numbers. The paper does not report that split,
+  so how much its own blink windows lower its score is unknown.
+- **Long segments:** horizontal error is lower than both published methods (4.21 vs 5.23 /
+  5.82° after exclusion), vertical error is higher than both (8.36 vs 6.59 / 8.04°). Summing
   detected displacements is essentially the paper's signal-differencing method; the Kalman
   filter's blink and eyelid modelling handles the vertical channel better.
 - **Unseen subjects** (not in the paper): 1.34 / 1.82° on short segments with no labels from the
   test subject.
 - **Remaining differences from the paper:** ground-truth thresholds come from each whole
   recording rather than from training data only; subject mistakes are judged by fixed rules rather
-  than by the authors; the outlier rule is label-based rather than error-based; the detector and
+  than by the authors; the paper gives no outlier threshold, so the far-out fence is a stand-in; the detector and
   blink rules were set by inspecting Dataset 2 events from all subjects; and blink decisions look
   up to 150 ms past the end of a movement.
 ### Datasets 3 and 4
