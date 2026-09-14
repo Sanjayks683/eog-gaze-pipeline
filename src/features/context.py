@@ -20,6 +20,12 @@ predictions toward the centre of the screen. Three summaries let them correct it
     for such data the mid-range locates the centre far more precisely than the
     mean (error ~1/N rather than ~1/sqrt(N)); the range is a label-free estimate
     of the subject's EOG gain.
+  * head pose — with CFG.preprocessing.context_head_pose (Dataset 3, free head), the
+    window mean of the head's yaw, pitch and roll and its difference from their
+    rolling mean over the main baseline window. Gaze angles are given in a face
+    frame, so while the eyes hold a screen target a head rotation moves the gaze by
+    about minus that rotation, and the cue layout the range features summarise moves
+    with it.
 
 All use the main baseline's causal setting, so with a causal baseline no
 feature uses samples after the window's end (apart from what the whole pipeline
@@ -66,6 +72,28 @@ def _range_features(sig: np.ndarray, starts: np.ndarray, win: int, fs: float,
     return [np.nan_to_num(f) for f in (level - mid, rng, (level - mid) / (rng + 1e-6))]
 
 
+HEAD_AXES = ("yaw", "pitch", "roll")
+
+
+def _head_pose_features(trial: Trial, starts: np.ndarray, win: int, causal: bool) -> List[np.ndarray]:
+    """Per head axis: window mean, and window mean minus the rolling mean over the main baseline window."""
+    if trial.head_pose is None:
+        raise ValueError(f"context_head_pose is on but {trial.subject_id}/{trial.trial_id} has no head pose")
+    pose = np.asarray(trial.head_pose, dtype=np.float64)
+    if pose.shape[0] != len(HEAD_AXES):
+        pose = pose.T
+    if pose.shape != (len(HEAD_AXES), len(trial.channels["H"])):
+        raise ValueError(f"head pose shape {pose.shape} does not match the {len(trial.channels['H'])} EOG samples")
+    rolling = max(2, int(round(CFG.preprocessing.baseline_window_sec * trial.fs)))
+    at = np.clip(starts + win - 1 if causal else starts + win // 2, 0, pose.shape[1] - 1)
+    feats = []
+    for axis in pose:
+        level = _window_means(axis, starts, win)
+        mean = pd.Series(axis).rolling(rolling, min_periods=1, center=not causal).mean().to_numpy()
+        feats += [level, level - mean[at]]
+    return feats
+
+
 def context_feature_names(channel_names: List[str]) -> List[str]:
     pp = CFG.preprocessing
     names = [f"{ch}_base_{method}{float(sec):g}s_minus_main"
@@ -74,6 +102,9 @@ def context_feature_names(channel_names: List[str]) -> List[str]:
     names += [f"{ch}_{kind}_q{low:g}-{high:g}_{float(sec):g}s"
               for sec in pp.context_range_windows_sec for low, high in pp.context_range_quantiles
               for ch in channel_names for kind in ("level_minus_midrange", "range", "level_over_range")]
+    if pp.context_head_pose:
+        names += [f"head_{axis}_{kind}" for axis in HEAD_AXES
+                  for kind in ("level", f"minus_{pp.baseline_window_sec:g}s_mean")]
     return names
 
 
@@ -128,6 +159,8 @@ def make_context_features(
                 for ch in channel_names:
                     feats += _range_features(trial.channels[ch], starts, win, trial.fs,
                                              float(window_sec), float(low), float(high), causal)
+        if pp.context_head_pose:
+            feats += _head_pose_features(trial, starts, win, causal)
         if out is None:
             out = np.zeros((len(metadata), len(feats)), dtype=np.float32)
         if feats:

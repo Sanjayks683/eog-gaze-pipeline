@@ -1,0 +1,44 @@
+# configs/dataset3_range_head_causal_weighted.yaml
+# ================================================
+# Dataset 3, real-time: dataset3_range_causal_weighted.yaml plus head-pose context
+# features (preprocessing.context_head_pose). Gaze angles are given in a face frame,
+# so while the eyes hold a screen target a head rotation moves the gaze by about minus
+# that rotation (within-cue target changes regress on head yaw / pitch with slopes of
+# -1.0 to -1.1), and the screen, whose cue spread the range features summarise, moves
+# with it. The features are the window mean of head yaw, pitch and roll and their
+# difference from a past-only 60 s rolling mean.
+#
+#   python main.py --config configs/dataset3_range_head_causal_weighted.yaml --phase preprocess
+#   python main.py --config configs/dataset3_range_head_causal_weighted.yaml --phase train_classical
+#   python main.py --config configs/dataset3_range_head_causal_weighted.yaml --phase compare
+
+data:
+  datasets_to_load:
+    - "dataset3"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "robust_line"
+  baseline_window_sec: 60.0
+  baseline_causal: true
+  baseline_clip_mad: 3.0
+  context_baselines:
+    - ["robust_mean", 30.0]
+    - ["robust_mean", 120.0]
+    - ["robust_line", 120.0]
+  context_lags_sec: [1.0, 2.0, 4.0, 8.0]
+  context_range_windows_sec: [60.0, 120.0, 240.0]
+  context_range_quantiles: [[0.10, 0.90], [0.05, 0.95]]
+  context_head_pose: true
+
+cv:
+  classical_classifiers: ["rf"]
+  classical_regressors: ["xgb"]
+  xgb_device: "cuda"
+  regression_train_windows: "weighted"
+  regression_nonfixation_weight: 0.2
+
+paths:
+  data_processed: "data/processed_dataset3/range_head_causal"
+  results: "reports/experiments/dataset3/range_head_causal_weighted"
+  reports_figures: "reports/experiments/dataset3/range_head_causal_weighted/figures"

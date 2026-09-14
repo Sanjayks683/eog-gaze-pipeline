@@ -39,6 +39,9 @@ class PreprocessingConfig:
     # [low, high] quantile pair; see src/features/context.py.
     context_range_windows_sec: List[float] = field(default_factory=list)
     context_range_quantiles: List[list] = field(default_factory=lambda: [[0.10, 0.90], [0.05, 0.95]])
+    # Head-pose context features (window mean of yaw / pitch / roll and its difference from
+    # their rolling mean over baseline_window_sec); needs head pose, i.e. Dataset 3.
+    context_head_pose: bool = False
     use_augmentation: bool = True
 
 @dataclass
@@ -193,6 +196,11 @@ class KnownStartConfig:
     # Outlier segments: H or V error beyond Q3 + outlier_iqr_factor x IQR (Tukey's far-out
     # fence), per subject and segment kind. The paper only says "substantially high" error.
     outlier_iqr_factor: float = 3.0
+    # "Detected saccades + head rotation" estimator (recordings with head pose): the gaze
+    # moves by -vor_gain x the head's yaw (H) / pitch (V) change between detected movements
+    # (1 = the eyes fully counter-rotate). On Dataset 3, within-cue target changes regress on
+    # head yaw and pitch with slopes of -1.0 to -1.1.
+    vor_gain: float = 1.0
     n_subsets: int = 3
     short_saccade_windows: int = 66   # per subset, as in the paper
     short_blink_windows: int = 33

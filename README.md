@@ -384,6 +384,9 @@ the paper's comparison method [BSPC 47, 2019]):
   each adds its displacement; blinks are rejected. The detector finds 93% of cue-driven saccades,
   and 95% of its detections follow a cue.
 - *Level change*: the EOG change since the segment start (short segments only).
+- *Detected saccades + head rotation* (recordings with head pose, i.e. Dataset 3): detected
+  saccades, plus minus the head's yaw / pitch change between detected movements
+  (`known_start.vor_gain` = 1); see [Datasets 3 and 4](#datasets-3-and-4).
 
 | Known-start task, MAE H / V (deg) | Fit | All segments | Outlier segments dropped |
 | :--- | :--- | :---: | :---: |
@@ -432,11 +435,14 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
   (18 channels), chin rest. Every trial goes from the centre to a 12° target in one of 36
   directions, back to the centre, then a blink, so targets are small and half are at the centre.
 - **Dataset 3 (Monopolar Non-Stationary):** 8 subjects with Dataset 2's electrodes and trial
-  timing, but free head movement. The target angles are given in a face frame that turns with the
-  head, so head pose is already part of the targets. What nothing here models is the slow
-  vestibulo-ocular (VOR) eye rotation that counters head movement: it moves the gaze without a
-  saccade, so the detected-saccade estimator misses it and a drift baseline can absorb it. The
-  Dataset 3 paper (Barbara et al., BSPC 90, 2024) adds a VOR model to its dual Kalman filter.
+  timing, but free head movement, with head pose from a trakSTAR sensor. The target angles are
+  given in a face frame that turns with the head. While the eyes hold a screen target, a head
+  rotation moves the target by about minus that rotation: within-cue target changes regress on
+  head yaw and pitch with slopes of −1.0 to −1.1. The eyes follow with slow vestibulo-ocular (VOR)
+  movements, which the detected-saccade estimator misses and a drift baseline can absorb. The
+  Dataset 3 paper (Barbara et al., BSPC 90, 2024) adds a VOR model to its dual Kalman filter. Here
+  the known-start estimator gets a head-rotation term, and the regression models optional
+  head-pose features (`configs/dataset3_range_head_causal_*.yaml`).
 - **Published numbers:** the Dataset 3 paper reports the known-start task only (within-subject,
   outliers dropped), listed below. The Dataset 4 paper (BSPC 112, 2026) reports per-saccade
   displacement errors in figures only, a different measure, so it has no row here.
@@ -450,10 +456,12 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 | + context + range, XGBoost, fixation windows only | 1.11 / 1.51 | 3.12 / 3.37 | 4.28 / 4.36 | 7.04 / 6.27 |
 | Known start, same subject, short (detected saccades) | 0.54 / 1.21 | — | 2.72 / 1.97 | — |
 | … outlier segments dropped | 0.47 / 1.03 | — | 2.67 / 1.73 | — |
+| … + head rotation, outlier segments dropped | — | — | **1.50 ± 0.31 / 1.50 ± 0.52** | — |
 | *Published: dual Kalman filter + VOR model, short* | — | — | 1.85 ± 0.51 / 2.19 ± 0.62 | — |
 | *Published: signal differencing, short* | — | — | 3.59 ± 0.74 / 2.52 ± 0.62 | — |
 | Known start, same subject, long 32 s (detected saccades) | 2.26 / 9.69 | — | 8.04 / 13.02 | — |
 | … outlier segments dropped | 2.02 / 9.69 | — | 7.67 / 12.67 | — |
+| … + head rotation, outlier segments dropped | — | — | 5.33 ± 2.00 / 12.42 ± 14.96 | — |
 | *Published: dual Kalman filter + VOR model, long* | — | — | 4.64 ± 1.37 / 6.10 ± 2.58 | — |
 | *Published: signal differencing, long* | — | — | 8.13 ± 1.15 / 11.25 ± 5.03 | — |
 
@@ -475,15 +483,20 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 - **Dataset 3 keeps a smaller share of the gain:** weighted XGBoost removes 50% / 29% of the
   mean-angle error versus 65% / 45% on Dataset 2, and long known-start segments reach
   8.04 / 13.02°. Free head movement is the obvious suspect, but Dataset 3 also has fewer subjects (8)
-  and nothing here models the VOR eye movements that come with head movement, so the cause is not
-  isolated.
+  and these regression models use no head pose, so the cause is not isolated.
 - **Known start against the Dataset 3 paper** (outliers dropped; the paper drops 7.77% of short and
-  3.91% of long segments, this evaluation 2.8% and 3.4%): on short segments, horizontal error
-  (2.67°) lies between the paper's Kalman filter with VOR model (1.85°) and signal differencing
-  (3.59°), and vertical error (1.73°) is below both (2.19 / 2.52°). On long segments, horizontal
-  error (7.67°) is just below signal differencing (8.13°) but well above the Kalman filter (4.64°),
-  and vertical error (12.67 ± 14.92°) is above both (6.10 / 11.25°). The VOR model is the main
-  thing this estimator lacks.
+  3.91% of long segments, this evaluation 2.9–3.4%):
+  - **Short segments:** the head-rotation term brings the error to 1.50 / 1.50°, below the paper's
+    Kalman filter with VOR model (1.85 / 2.19°) and signal differencing (3.59 / 2.52°). Without the
+    term it is 2.67 / 1.73°. On saccade windows alone (none dropped) the term cuts horizontal
+    error from 3.81° to 2.23°.
+  - **Long segments:** the term cuts horizontal error from 7.67° to 5.33°, against 4.64° for the
+    Kalman filter. Vertical error stays at 12.42 ± 14.96°, far above the paper's 6.10°: missed
+    blinks (next point) cause it, and the head term does not touch them.
+  - **Unseen subjects:** with the term, 1.63 / 1.92° on short and 5.67 / 9.37° on long segments.
+  - **How the term is fitted:** it uses the same fitted H/V map as detected saccades. That map is
+    fitted on the cue steps, which are measured before the head moves, so refitting it with the
+    head term included would bias it.
 - **Known start, long segments, vertical:** blinks the detector misses leave a lasting vertical
   offset that keeps adding up (1.9% of labelled blinks counted as eye
   movements on Dataset 4, 5.1% on Dataset 3).

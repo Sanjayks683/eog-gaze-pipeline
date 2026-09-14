@@ -27,7 +27,7 @@ from src.features.context import make_context_features
 from src.features.engineered import extract_features_batch
 from src.preprocessing.normalize import preprocess_trials
 
-FEATURE_BLOCKS = ("engineered", "context", "range")
+FEATURE_BLOCKS = ("engineered", "context", "range", "head")
 
 
 def load_unified_trials() -> List[Trial]:
@@ -39,7 +39,8 @@ def build_feature_matrix(trials: List[Trial]) -> Dict[str, np.ndarray]:
     """
     Preprocess copies of `trials` under the current CFG and return plain arrays:
     "engineered", "context" (context baselines + lagged levels), "range" (rolling
-    range), "y" (window-mean target angles), "subject", "fixation", "window_start".
+    range), "head" (head-pose features; no columns unless context_head_pose), "y"
+    (window-mean target angles), "subject", "fixation", "window_start".
     """
     trials = [copy.deepcopy(t) for t in trials]
     raw = [{k: v.copy() for k, v in t.channels.items()} for t in trials]
@@ -50,11 +51,14 @@ def build_feature_matrix(trials: List[Trial]) -> Dict[str, np.ndarray]:
         raise ValueError(f"Expected one sampling rate, got {sorted(fs_values)}")
     channel_names = meta[0]["channel_names"]
     ctx = make_context_features(trials, raw, meta)
-    n_basic = (len(CFG.preprocessing.context_baselines) + len(CFG.preprocessing.context_lags_sec)) * len(channel_names)
+    pp = CFG.preprocessing
+    n_basic = (len(pp.context_baselines) + len(pp.context_lags_sec)) * len(channel_names)
+    n_range = len(pp.context_range_windows_sec) * len(pp.context_range_quantiles) * len(channel_names) * 3
     return {
         "engineered": extract_features_batch(X, fs=fs_values.pop(), channel_names=channel_names).astype(np.float32),
         "context": ctx[:, :n_basic],
-        "range": ctx[:, n_basic:],
+        "range": ctx[:, n_basic:n_basic + n_range],
+        "head": ctx[:, n_basic + n_range:],
         "y": y,
         "subject": np.array([m["subject_id"] for m in meta]),
         "fixation": np.array([bool(m["is_fixation"]) for m in meta]),

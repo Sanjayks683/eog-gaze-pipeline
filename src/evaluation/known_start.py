@@ -35,6 +35,14 @@ linear map without intercept, as in Barbara et al., BSPC 47, 2019):
     running level stands in for "level after". Whether a movement is a blink is
     decided from the whole movement, up to after_gap_ms + level_window_ms after it ends.
   * level change: A · (EOG now − EOG at segment start); short segments only.
+  * detected saccades + head rotation (recordings with head pose, i.e. Dataset 3):
+    detected saccades, plus minus vor_gain × the head's yaw (H) and pitch (V) change
+    between detected movements. Gaze angles are in a face frame, so while the eyes
+    hold a screen target a head rotation moves the gaze by minus that rotation, and
+    the eyes follow with slow vestibulo-ocular (VOR) movements the detector does not
+    see; inside a detected movement the EOG step already includes the head's share.
+    It uses the detected-saccade A unchanged: the gaze shifts A is fitted on are the
+    cue steps, taken before the head has moved.
 """
 
 from __future__ import annotations
@@ -43,7 +51,7 @@ import csv
 import itertools
 import json
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy import signal as sp_signal
@@ -310,6 +318,7 @@ def prepare_recording(trial: Trial) -> Dict:
         "mv_onset": events["onset"][keep], "mv_before": events["before"][keep], "mv_delta": events["delta"][keep],
         "mv_known": events["offset"][keep] + _ms(cfg.after_gap_ms, fs) + level_win,
         "level_win": level_win,
+        "vor": _head_rotation_between_movements(trial, events, n, fs),
     }
 
 
@@ -336,13 +345,48 @@ def _level_displacement(d: Dict, start: int, idx: np.ndarray) -> np.ndarray:
     return d["hv"][:, idx].T - z0
 
 
+def _head_rotation_between_movements(trial: Trial, events: Dict, n: int, fs: float) -> Optional[np.ndarray]:
+    """
+    (2, n) running sum of the head's yaw (row 0, paired with H) and pitch (row 1, V)
+    change in degrees, counting only samples outside detected eye movements (each
+    from onset to the end of its after-level window); None without head pose.
+    """
+    if trial.head_pose is None:
+        return None
+    cfg = CFG.known_start
+    pose = np.asarray(trial.head_pose, dtype=np.float64)
+    pose = (pose if pose.shape[0] == 3 else pose.T)[:2, :n]
+    for axis in pose:
+        bad = ~np.isfinite(axis)
+        if bad.any():
+            axis[bad] = np.interp(np.flatnonzero(bad), np.flatnonzero(~bad), axis[~bad])
+    b, a = sp_signal.butter(4, cfg.lowpass_hz / (0.5 * fs))
+    step = np.diff(sp_signal.filtfilt(b, a, pose, axis=1), axis=1, prepend=pose[:, :1])
+    step[:, 0] = 0.0
+    moving = np.zeros(n, dtype=bool)
+    ends = events["offset"] + _ms(cfg.after_gap_ms, fs) + _ms(cfg.level_window_ms, fs)
+    for onset, end in zip(events["onset"], ends):
+        moving[onset:end] = True
+    step[:, moving] = 0.0
+    return np.cumsum(step, axis=1)
+
+
+def _vor_displacement(d: Dict, start: int, idx: np.ndarray) -> np.ndarray:
+    """(len(idx), 2) gaze change since `start` from head rotation between movements."""
+    return -CFG.known_start.vor_gain * (d["vor"][:, idx] - d["vor"][:, [start]]).T
+
+
+def _estimators(d: Dict) -> Tuple[str, ...]:
+    return ("saccades", "level") + (("saccades_vor",) if d.get("vor") is not None else ())
+
+
 def _fit_no_intercept(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
     """A (2 x 2) minimising ||X A' − Y||; predictions are X @ A.T."""
     return np.linalg.lstsq(X, Y, rcond=None)[0].T
 
 
 def training_pairs(d: Dict, windows: List[Dict], gain: np.ndarray) -> Dict[str, tuple]:
-    """Per saccade window: (EOG displacement / gain, gaze shift) for both estimators."""
+    """Per saccade window: (EOG displacement / gain, gaze shift) for both fitted estimators."""
     sacc = [w for w in windows if w["kind"] == "saccade" and len(w["scored"])]
     if not sacc:
         return {"saccades": (np.zeros((0, 2)), np.zeros((0, 2))), "level": (np.zeros((0, 2)), np.zeros((0, 2)))}
@@ -352,12 +396,22 @@ def training_pairs(d: Dict, windows: List[Dict], gain: np.ndarray) -> Dict[str, 
     return {"saccades": (X_sac / gain, Y), "level": (X_lvl / gain, Y)}
 
 
+def _fit_estimators(pairs: Dict[str, tuple], d: Dict) -> Dict[str, np.ndarray]:
+    """A per estimator; the head-rotation estimator shares the detected-saccade A."""
+    A = {est: _fit_no_intercept(*pairs[est]) for est in ("saccades", "level")}
+    if d.get("vor") is not None:
+        A["saccades_vor"] = A["saccades"]
+    return A
+
+
 def segment_error(d: Dict, windows: List[Dict], A: np.ndarray, gain: np.ndarray, estimator: str) -> np.ndarray:
     """Mean |estimate − target| over the scored samples of consecutive windows from one known start."""
     start, gaze0 = windows[0]["start"], windows[0]["gaze0"]
     idx = np.concatenate([w["scored"] for w in windows])
-    disp = (_saccade_displacement if estimator == "saccades" else _level_displacement)(d, start, idx)
+    disp = (_level_displacement if estimator == "level" else _saccade_displacement)(d, start, idx)
     pred = gaze0 + (disp / gain) @ A.T
+    if estimator == "saccades_vor":
+        pred = pred + _vor_displacement(d, start, idx)
     return np.abs(pred - d["target"][idx]).mean(axis=0)
 
 
@@ -369,10 +423,12 @@ def _label_free_gain(d: Dict) -> np.ndarray:
 def _evaluate(d: Dict, A: Dict[str, np.ndarray], gain: np.ndarray, short_windows: List[Dict],
               long_segments: List[List[Dict]], acc: Dict[str, list]) -> None:
     for w in short_windows:
-        for est in ("saccades", "level"):
+        for est in _estimators(d):
             acc[f"short_{est}"].append((segment_error(d, [w], A[est], gain, est), w["kind"]))
     for seg in long_segments:
-        acc["long_saccades"].append((segment_error(d, seg, A["saccades"], gain, "saccades"), "segment"))
+        for est in _estimators(d):
+            if est != "level":
+                acc[f"long_{est}"].append((segment_error(d, seg, A[est], gain, est), "segment"))
 
 
 def _outliers(errs: np.ndarray) -> np.ndarray:
@@ -457,7 +513,12 @@ def run_known_start_protocol(trials: List[Trial]) -> Dict:
         raise ValueError("Known-start protocol needs trials with target_angle, ControlSignal, H and V.")
     subjects = sorted({d["subject_id"] for d in data})
     by_subject = {s: [d for d in data if d["subject_id"] == s] for s in subjects}
+    has_head = all(d["vor"] is not None for d in data)
+    if not has_head:  # all recordings or none, so every subject has the same rows
+        for d in data:
+            d["vor"] = None
     keys = ("short_saccades", "short_level", "long_saccades")
+    keys += ("short_saccades_vor", "long_saccades_vor") if has_head else ()
     ones = np.ones(2)
 
     same = {k: [] for k in keys}
@@ -467,11 +528,8 @@ def run_known_start_protocol(trials: List[Trial]) -> Dict:
             for fit_i, test_i in itertools.permutations(range(cfg.n_subsets), 2):
                 short_pairs = training_pairs(d, d["short"][fit_i], ones)
                 long_pairs = training_pairs(d, [w for seg in d["long"][fit_i] for w in seg], ones)
-                A = {"saccades": _fit_no_intercept(*short_pairs["saccades"]),
-                     "level": _fit_no_intercept(*short_pairs["level"])}
-                _evaluate(d, A, ones, d["short"][test_i], [], acc)
-                _evaluate(d, {"saccades": _fit_no_intercept(*long_pairs["saccades"]), "level": A["level"]},
-                          ones, [], d["long"][test_i], acc)
+                _evaluate(d, _fit_estimators(short_pairs, d), ones, d["short"][test_i], [], acc)
+                _evaluate(d, _fit_estimators(long_pairs, d), ones, [], d["long"][test_i], acc)
         for k in keys:
             same[k].append(acc[k])
 
@@ -480,8 +538,8 @@ def run_known_start_protocol(trials: List[Trial]) -> Dict:
     for s in subjects:
         others = [d for o in subjects if o != s for d in by_subject[o]]
         pairs = [training_pairs(d, [w for part in d["short"] for w in part], gain[id(d)]) for d in others]
-        A = {est: _fit_no_intercept(np.vstack([p[est][0] for p in pairs]), np.vstack([p[est][1] for p in pairs]))
-             for est in ("saccades", "level")}
+        A = _fit_estimators({est: (np.vstack([p[est][0] for p in pairs]), np.vstack([p[est][1] for p in pairs]))
+                             for est in ("saccades", "level")}, others[0])
         acc = {k: [] for k in keys}
         for d in by_subject[s]:
             _evaluate(d, A, gain[id(d)], [w for part in d["short"] for w in part],
@@ -524,8 +582,10 @@ PAPER_KNOWN_START = {
 
 _ROW_LABELS = {
     "short_saccades": ("detected saccades", "short 1-2 s"),
+    "short_saccades_vor": ("detected saccades + head rotation", "short 1-2 s"),
     "short_level": ("level change since start", "short 1-2 s"),
     "long_saccades": ("detected saccades", "long 32 s"),
+    "long_saccades_vor": ("detected saccades + head rotation", "long 32 s"),
 }
 
 
@@ -533,6 +593,8 @@ def known_start_rows(results: Dict) -> List[Dict]:
     rows = []
     for fit_key, fit_label in (("same_subject", "same subject"), ("unseen_subject", "unseen subject")):
         for key, (method, segments) in _ROW_LABELS.items():
+            if key not in results[fit_key]:
+                continue
             r = results[fit_key][key]
             rows.append({"method": f"Known start, {method}", "fit": fit_label, "segments": segments,
                          "mae_h_deg": r["mae_h_deg"], "mae_v_deg": r["mae_v_deg"],

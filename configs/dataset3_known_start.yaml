@@ -1,8 +1,9 @@
 # configs/dataset3_known_start.yaml
 # =================================
 # Dataset 3: the known-start protocol of configs/dataset2_known_start.yaml. The target
-# angle moves with the head (face-frame gaze angles; see dataset3_robust_line_causal.yaml).
-# Published known-start numbers: Barbara et al., BSPC 90 (2024).
+# angle moves with the head (face-frame gaze angles; see dataset3_robust_line_causal.yaml),
+# so the recordings' head pose adds the "detected saccades + head rotation" estimator
+# (known_start.vor_gain). Published known-start numbers: Barbara et al., BSPC 90 (2024).
 #
 #   python main.py --config configs/dataset3_known_start.yaml --phase known_start
 

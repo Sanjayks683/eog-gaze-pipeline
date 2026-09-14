@@ -44,6 +44,7 @@
     "blink_margin_ms": 150.0,
     "min_scored_ms": 50.0,
     "outlier_iqr_factor": 3.0,
+    "vor_gain": 1.0,
     "n_subsets": 3,
     "short_saccade_windows": 66,
     "short_blink_windows": 33,
