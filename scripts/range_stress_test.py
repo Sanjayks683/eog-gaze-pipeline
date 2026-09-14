@@ -21,6 +21,13 @@ Scenarios, from each trial's two cue positions P1 and P2:
   random_*  random trials, as many as the matching skewed scenario
   block_*   a contiguous run of trials, as many as the matching skewed scenario
 
+Every scenario is also scored with occasional known gaze ("anchored"): every 30, 60
+or 120 s the target of the next fixation window is given, and until the next anchor
+the estimate is that target plus the change of the model's prediction since the
+anchor. This tests whether recalibrating now and then removes the offset a rolling
+drift baseline leaves when gaze stays on one side. Anchored and plain predictions are
+scored on the same windows (anchors and windows before the first anchor excluded).
+
     python scripts/range_stress_test.py --config configs/dataset2_range_causal_weighted.yaml
 
 Results: reports/experiments/range_stress_test/<dataset>/.
@@ -47,6 +54,42 @@ from src.training.cv_splits import get_folds  # noqa: E402
 
 FEATURE_SETS = {"context": ["engineered", "context"], "range": ["engineered", "context", "range"]}
 SKEWS = ("right", "top", "centre")
+ANCHOR_INTERVALS_SEC = (30.0, 60.0, 120.0)
+
+
+def anchor_predictions(y, pred, subjects, fixation, window_start, interval: int) -> np.ndarray:
+    """
+    Estimates given a known gaze every `interval` samples. The anchor is the first
+    fixation window at or after each multiple of the interval; from it until the next
+    anchor, estimate = anchor target + (prediction − anchor prediction). Anchors and
+    windows before the first anchor get NaN.
+    """
+    out = np.full_like(pred, np.nan)
+    for s in np.unique(subjects):
+        rows = np.flatnonzero((subjects == s) & np.isfinite(pred).all(axis=1))
+        rows = rows[np.argsort(window_start[rows], kind="stable")]
+        candidates = rows[fixation[rows]]
+        if len(rows) == 0 or len(candidates) == 0:
+            continue
+        grid = np.arange(0, window_start[rows].max() + 1, interval)
+        anchors = candidates[np.unique(np.minimum(np.searchsorted(window_start[candidates], grid),
+                                                  len(candidates) - 1))]
+        which = np.searchsorted(window_start[anchors], window_start[rows], side="right") - 1
+        ok = (which >= 0) & ~np.isin(rows, anchors)
+        a = anchors[which[ok]]
+        out[rows[ok]] = y[a] + pred[rows[ok]] - pred[a]
+    return out
+
+
+def anchored_scores(matrix: dict, pred: np.ndarray, fs: float) -> dict:
+    y, subjects, fixation = matrix["y"].astype(np.float64), matrix["subject"], matrix["fixation"]
+    scores = {}
+    for sec in ANCHOR_INTERVALS_SEC:
+        anchored = anchor_predictions(y, pred, subjects, fixation, matrix["window_start"], int(round(sec * fs)))
+        plain = np.where(np.isfinite(anchored), pred, np.nan)
+        scores[f"{sec:g}s"] = {"anchored": evaluate(y, anchored, subjects, fixation),
+                               "plain_same_windows": evaluate(y, plain, subjects, fixation)}
+    return scores
 
 
 def trial_cues(trial):
@@ -164,6 +207,7 @@ def main() -> None:
                                                          fix_all, CFG.cv.regression_train_windows)
                 pred[kept - offset] = p
             entry[name] = evaluate(matrix["y"].astype(np.float64), pred, matrix["subject"], matrix["fixation"])
+            entry[name]["anchored"] = anchored_scores(matrix, pred, trials[0].fs)
         ctx, rng_ = entry["context"], entry["range"]
         entry["range_gain_fixation_mae_deg"] = [ctx["fixation_mae_h_deg"] - rng_["fixation_mae_h_deg"],
                                                 ctx["fixation_mae_v_deg"] - rng_["fixation_mae_v_deg"]]
@@ -172,6 +216,11 @@ def main() -> None:
               f"range {rng_['fixation_mae_h_deg']:.2f} / {rng_['fixation_mae_v_deg']:.2f} | gain "
               f"{entry['range_gain_fixation_mae_deg'][0]:+.2f} / {entry['range_gain_fixation_mae_deg'][1]:+.2f} "
               f"({time.time() - t0:.0f}s)", flush=True)
+        for name in FEATURE_SETS:
+            a = entry[name]["anchored"]["60s"]
+            print(f"{'':15s} {name:7s} anchored every 60 s {a['anchored']['fixation_mae_h_deg']:.2f} / "
+                  f"{a['anchored']['fixation_mae_v_deg']:.2f} vs plain {a['plain_same_windows']['fixation_mae_h_deg']:.2f} / "
+                  f"{a['plain_same_windows']['fixation_mae_v_deg']:.2f}", flush=True)
         with open(os.path.join(out_dir, "range_stress_test.json"), "w") as f:
             json.dump(results, f, indent=2)
     print(f"Saved {os.path.join(out_dir, 'range_stress_test.json')}")

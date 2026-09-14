@@ -581,6 +581,27 @@ and one contiguous block, which is just as short but has no joins.
 - **Joining trials costs extra with range features:** random trials score 0.8–2.5° worse than a
   contiguous block of the same length (8.06 vs 6.03°, 7.55 vs 6.78°, 8.56 vs 6.02° horizontal).
   Without range features the difference is inconsistent.
+- **Occasional recalibration (anchors).** Every 30, 60 or 120 s the target of the next fixation
+  window is given. Until the next anchor, the estimate is that target plus the change in the
+  model's prediction since the anchor. Both columns score the same windows (anchors and the time
+  before the first one excluded); the model uses range features:
+
+  | Test recording, fixation MAE H / V (deg) | No anchors | Every 30 s | Every 60 s | Every 120 s |
+  | :--- | :---: | :---: | :---: | :---: |
+  | Full recording | 4.39 / 3.87 | 4.81 / 4.76 | 5.50 / 5.20 | 5.84 / 5.29 |
+  | Right only | 15.56 / 5.68 | 8.04 / 7.46 | 9.24 / 7.90 | 12.20 / 8.03 |
+  | Top only | 7.35 / 9.74 | 8.99 / 5.45 | 9.14 / 5.65 | 9.99 / 6.02 |
+  | Centre only | 9.30 / 5.15 | 9.96 / 6.48 | 11.47 / 7.06 | 11.41 / 6.78 |
+  | Random trials, right count | 8.06 / 6.01 | 8.83 / 6.87 | 9.99 / 7.10 | 10.72 / 6.99 |
+
+  - **One-sided gaze:** anchors roughly halve the error on the skewed axis. Right only, horizontal
+    falls from 15.6° to 8.0° with an anchor every 30 s; top only, vertical falls from 9.7° to 5.5°.
+  - **Everything else gets worse:** the error rises on the other axis, and on every recording
+    whose gaze is balanced (full recording 4.39 / 3.87° → 4.81 / 4.76°). Each anchor carries one
+    window's prediction error into every estimate until the next anchor, while the drift baseline
+    already removes offsets when gaze is balanced.
+  - **When to use it:** recalibrating pays off only when gaze is known to stay on one side, and
+    probably with several anchors averaged (not tested here).
 - These recordings are shortened, so the absolute numbers are not comparable to the main tables.
   Results: `reports/experiments/range_stress_test/dataset2/range_stress_test.json`.
 
