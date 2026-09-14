@@ -480,6 +480,7 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 | Known start, same subject, long 32 s (detected saccades) | 2.26 / 9.69 | — | 8.04 / 13.02 | — |
 | … outlier segments dropped | 2.02 / 9.69 | — | 7.67 / 12.67 | — |
 | … + head rotation, outlier segments dropped | — | — | 5.33 ± 2.00 / 12.42 ± 14.96 | — |
+| … fused with cross-subject XGBoost, outlier segments dropped | — | — | **4.01 ± 0.63 / 4.01 ± 1.20** | — |
 | *Published: dual Kalman filter + VOR model, long* | — | — | 4.64 ± 1.37 / 6.10 ± 2.58 | — |
 | *Published: signal differencing, long* | — | — | 8.13 ± 1.15 / 11.25 ± 5.03 | — |
 
@@ -518,6 +519,10 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
     Kalman filter. Vertical error stays at 12.42 ± 14.96°, far above the paper's 6.10°: missed
     blinks (next point) cause it, and the head term does not touch them.
   - **Unseen subjects:** with the term, 1.63 / 1.92° on short and 5.67 / 9.37° on long segments.
+  - **Fused with cross-subject XGBoost** (detected saccades + head rotation,
+    `scripts/known_start_fusion.py`): long segments reach 4.01 ± 0.63 / 4.01 ± 1.20°, below the
+    Kalman filter with VOR model (4.64 / 6.10°) on both axes, and 4.42 / 4.89° for unseen subjects.
+    Short segments stay at 1.51 / 1.52°.
   - **How the term is fitted:** it uses the same fitted H/V map as detected saccades. That map is
     fitted on the cue steps, which are measured before the head moves, so refitting it with the
     head term included would bias it.
