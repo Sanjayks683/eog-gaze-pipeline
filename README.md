@@ -500,6 +500,15 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 - **Known start, long segments, vertical:** blinks the detector misses leave a lasting vertical
   offset that keeps adding up (1.9% of labelled blinks counted as eye
   movements on Dataset 4, 5.1% on Dataset 3).
+- **Direction invariance (Phase 10, Dataset 4 deep model):**
+  `python main.py --config configs/dataset4_robust_line_causal.yaml --phase ablations` sorts the
+  test windows by target direction. Targets within 3° of the centre (71% of windows) have no
+  direction and get their own bucket; an earlier version had counted them as 0°.
+  - **By direction:** the 2-D gaze RMSE is 1.96° at the centre and 5.56–6.36° across the eight 45°
+    direction buckets, so the error hardly depends on direction.
+  - **Within a bucket:** the error is larger along the saccade's axis. H RMSE is 4.8–4.9° for
+    mostly horizontal targets, and V RMSE 5.4–5.8° for mostly vertical ones.
+  - Results: `reports/experiments/dataset4/robustline60_causal/direction_invariance_results.json`.
 
 ### Robustness checks
 

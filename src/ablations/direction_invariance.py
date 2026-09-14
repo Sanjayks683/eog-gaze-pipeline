@@ -24,10 +24,15 @@ def bucket_by_direction(
     angle_pred: np.ndarray,
     metadata: List[dict],
     n_bins: int = 8,
+    min_radius_deg: float = 3.0,
 ) -> Dict[str, Dict]:
     """
     Bucket windows by target direction (angle of the true gaze vector)
     and compute RMSE per bucket.
+
+    A target at the screen centre has no direction: arctan2(0, 0) = 0 would put it in
+    the first bucket, and Dataset 4 trials return to the centre, so most windows are
+    there. Targets within min_radius_deg of the centre form a separate "centre" entry.
 
     Parameters
     ----------
@@ -35,33 +40,32 @@ def bucket_by_direction(
     angle_pred : (n, 2) predictions
     metadata   : list of dicts with dataset_source per window
     n_bins     : number of direction buckets (default 8 = every 45°)
+    min_radius_deg : targets closer to the centre than this are not given a direction
 
     Returns
     -------
-    dict mapping direction label → {'rmse_h', 'rmse_v', 'n_windows'}
+    dict mapping bucket label → {'rmse_h_deg', 'rmse_v_deg', 'rmse_total_deg', 'n_windows'};
+    rmse_total_deg is the RMSE of the 2-D gaze error, comparable across directions.
     """
-    gaze_direction_rad = np.arctan2(angle_true[:, 1], angle_true[:, 0])
-    gaze_direction_deg = np.degrees(gaze_direction_rad) % 360.0
+    gaze_direction_deg = np.degrees(np.arctan2(angle_true[:, 1], angle_true[:, 0])) % 360.0
+    centre = np.hypot(angle_true[:, 0], angle_true[:, 1]) < min_radius_deg
 
-    bin_edges = np.linspace(0, 360, n_bins + 1)
-    bin_labels = [
-        f"{int(bin_edges[i])}-{int(bin_edges[i+1])}°" for i in range(n_bins)
-    ]
-
-    results = {}
-    for i, label in enumerate(bin_labels):
-        in_bin = (gaze_direction_deg >= bin_edges[i]) & (gaze_direction_deg < bin_edges[i + 1])
-        if not np.any(in_bin):
-            results[label] = {"rmse_h_deg": None, "rmse_v_deg": None, "n_windows": 0}
-            continue
-        pred_b = angle_pred[in_bin]
-        true_b = angle_true[in_bin]
-        results[label] = {
-            "rmse_h_deg": float(np.sqrt(np.mean((pred_b[:, 0] - true_b[:, 0]) ** 2))),
-            "rmse_v_deg": float(np.sqrt(np.mean((pred_b[:, 1] - true_b[:, 1]) ** 2))),
-            "n_windows": int(np.sum(in_bin)),
+    def stats(mask: np.ndarray) -> Dict:
+        if not np.any(mask):
+            return {"rmse_h_deg": None, "rmse_v_deg": None, "rmse_total_deg": None, "n_windows": 0}
+        err = angle_pred[mask] - angle_true[mask]
+        return {
+            "rmse_h_deg": float(np.sqrt(np.mean(err[:, 0] ** 2))),
+            "rmse_v_deg": float(np.sqrt(np.mean(err[:, 1] ** 2))),
+            "rmse_total_deg": float(np.sqrt(np.mean(np.sum(err ** 2, axis=1)))),
+            "n_windows": int(np.sum(mask)),
         }
 
+    bin_edges = np.linspace(0, 360, n_bins + 1)
+    results = {f"centre (< {min_radius_deg:g}°)": stats(centre)}
+    for i in range(n_bins):
+        in_bin = ~centre & (gaze_direction_deg >= bin_edges[i]) & (gaze_direction_deg < bin_edges[i + 1])
+        results[f"{int(bin_edges[i])}-{int(bin_edges[i + 1])}°"] = stats(in_bin)
     return results
 
 
@@ -77,16 +81,18 @@ def plot_direction_bar_chart(
     labels = list(direction_results.keys())
     rmse_h = [direction_results[l].get("rmse_h_deg") or 0 for l in labels]
     rmse_v = [direction_results[l].get("rmse_v_deg") or 0 for l in labels]
+    rmse_total = [direction_results[l].get("rmse_total_deg") or 0 for l in labels]
     counts = [direction_results[l]["n_windows"] for l in labels]
 
     x = np.arange(len(labels))
-    width = 0.35
+    width = 0.27
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
     fig.suptitle("Dataset 4 — Direction-Invariance Ablation\nRegression Error per Direction Bucket")
 
-    ax1.bar(x - width / 2, rmse_h, width, label="RMSE H", color="steelblue")
-    ax1.bar(x + width / 2, rmse_v, width, label="RMSE V", color="coral")
+    ax1.bar(x - width, rmse_h, width, label="RMSE H", color="steelblue")
+    ax1.bar(x, rmse_v, width, label="RMSE V", color="coral")
+    ax1.bar(x + width, rmse_total, width, label="RMSE, 2-D error", color="gray")
     ax1.set_xticks(x)
     ax1.set_xticklabels(labels, rotation=45, ha="right")
     ax1.set_ylabel("RMSE (degrees)")
