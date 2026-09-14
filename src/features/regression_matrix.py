@@ -35,7 +35,7 @@ def load_unified_trials() -> List[Trial]:
     return [to_common_schema(t) for t in load_all_datasets(skip_missing=True)]
 
 
-def build_feature_matrix(trials: List[Trial]) -> Dict[str, np.ndarray]:
+def build_feature_matrix(trials: List[Trial], engineered: bool = True) -> Dict[str, np.ndarray]:
     """
     Preprocess copies of `trials` under the current CFG and return plain arrays:
     "engineered", "context" (context baselines + lagged levels), "range" (rolling
@@ -55,7 +55,9 @@ def build_feature_matrix(trials: List[Trial]) -> Dict[str, np.ndarray]:
     n_basic = (len(pp.context_baselines) + len(pp.context_lags_sec)) * len(channel_names)
     n_range = len(pp.context_range_windows_sec) * len(pp.context_range_quantiles) * len(channel_names) * 3
     return {
-        "engineered": extract_features_batch(X, fs=fs_values.pop(), channel_names=channel_names).astype(np.float32),
+        # engineered=False skips the slow window features when only context blocks are needed
+        "engineered": (extract_features_batch(X, fs=fs_values.pop(), channel_names=channel_names).astype(np.float32)
+                       if engineered else np.zeros((len(meta), 0), dtype=np.float32)),
         "context": ctx[:, :n_basic],
         "range": ctx[:, n_basic:n_basic + n_range],
         "head": ctx[:, n_basic + n_range:],

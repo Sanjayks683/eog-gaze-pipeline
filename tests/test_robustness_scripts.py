@@ -10,8 +10,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from scripts.nested_cv import evaluate
-from scripts.range_stress_test import keep_mask, splice, trial_cues
+from scripts.nested_cv import evaluate, run_nested
+from scripts.range_stress_test import anchor_predictions, keep_mask, splice, trial_cues
 from scripts.subject_statistics import compare
 from src.data.schema import Trial
 
@@ -73,3 +73,32 @@ def test_statistics_compare_pairs_subjects():
     assert 0.5 <= lo < 0.95 < hi <= 1.4
     assert out["subjects_improved"] == {"h": 10, "v": 0}
     assert out["wilcoxon_p"]["h"] < 0.01
+
+
+def test_anchored_estimates_remove_a_constant_offset_after_each_anchor():
+    n = 40
+    window_start = np.arange(n) * 10
+    y = np.column_stack([np.arange(n, dtype=float), np.zeros(n)])
+    fixation = np.ones(n, dtype=bool)
+    fixation[0] = False
+    out = anchor_predictions(y, y + 5.0, np.array(["A"] * n), fixation, window_start, interval=100)
+
+    anchors = [1, 10, 20, 30]  # first fixation window at or after samples 0, 100, 200, 300
+    assert np.isnan(out[anchors]).all() and np.isnan(out[0]).all()
+    scored = np.isfinite(out).all(axis=1)
+    assert scored.sum() == n - 5 and np.allclose(out[scored], y[scored])
+
+
+def test_run_nested_picks_the_candidate_that_wins_on_inner_folds():
+    rng = np.random.RandomState(0)
+    subjects = np.repeat([f"S{i}" for i in range(10)], 20)
+    y = rng.randn(200, 2)
+    fixation = np.ones(200, dtype=bool)
+
+    def fit_predict(error, train_idx, test_idx, out):
+        out[test_idx] = y[test_idx] + error
+
+    selected, fixed, folds, _ = run_nested([0.5, 0.1, 1.0], fit_predict, y, subjects, fixation, name=str)
+    assert all(fold["selected"] == {"fixation": "0.1", "rmse": "0.1"} for fold in folds)
+    assert np.allclose(selected["fixation"], y + 0.1)
+    assert np.allclose(fixed[1.0], y + 1.0)

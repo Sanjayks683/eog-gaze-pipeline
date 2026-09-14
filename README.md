@@ -700,6 +700,17 @@ quantiles) keep their configured values and were not part of the selection.
 - Results: `reports/experiments/nested_cv/dataset2/{realtime,offline}/` (`nested_cv_results.json`
   with each fold's inner scores and choice, and `fixed_candidates.csv` with every combination scored
   on the test folds).
+- **The range-feature settings barely matter.** `scripts/nested_range_settings.py` (real-time track,
+  60 s baseline) searches 24 combinations:
+  - range windows: 30/60/120, 60/120/240, 120/240/480 or 60/240 s
+  - quantile pairs: 10–90% + 5–95%, 5–95% alone, or 2–98% + 10–90%
+  - training windows: weighted or fixation
+
+  Fixation MAE on the outer folds spans only 4.31–4.52° horizontally and 3.78–4.09° vertically.
+  With fixation windows, the configured setting (60/120/240 s, 10–90% + 5–95%) scores 4.36 / 3.83°
+  and the best (30/60/120 s) 4.31 / 3.78°. A single quantile pair and the longest windows are
+  slightly worse. Nested selection gives 4.37 / 3.88°.
+  Results: `reports/experiments/nested_cv/dataset2/realtime_range_settings/`.
 
 #### Per-subject significance
 
@@ -783,6 +794,7 @@ model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curve
 | `dataset4_range_causal_{weighted,fixation}.yaml` | `reports/experiments/dataset4/range_causal_*/` | Dataset 4 with the best Dataset 2 setup |
 | `dataset4_known_start.yaml` | `reports/experiments/dataset4/known_start/` | Dataset 4 known-start protocol |
 | `scripts/nested_cv.py` with `dataset2_range_{causal,centred}_weighted.yaml` | `reports/experiments/nested_cv/dataset2/{realtime,offline}/` | Nested cross-subject selection of baseline window, features and training windows |
+| `scripts/nested_range_settings.py` with `dataset2_range_causal_weighted.yaml` | `reports/experiments/nested_cv/dataset2/realtime_range_settings/` | Nested selection of the rolling-range windows and quantiles |
 | `scripts/range_stress_test.py` with `dataset2_range_causal_weighted.yaml` | `reports/experiments/range_stress_test/dataset2/` | Range features when test gaze covers only part of the screen |
 | `scripts/subject_statistics.py` | `reports/experiments/statistics/` | Per-subject Wilcoxon tests and bootstrap confidence intervals |
 | `scripts/known_start_fusion.py --dataset datasetN` | `reports/experiments/known_start_fusion/datasetN/` | Known start fused with cross-subject XGBoost |
@@ -810,6 +822,7 @@ eog-gaze-pipeline/
 ├── scripts/
 │   ├── inspect_raw.py       # Phase 0 verification
 │   ├── nested_cv.py         # nested cross-subject model selection
+│   ├── nested_range_settings.py  # nested selection of the range-feature settings
 │   ├── range_stress_test.py # range features under skewed gaze
 │   ├── subject_statistics.py  # per-subject significance tests and confidence intervals
 │   ├── known_start_fusion.py  # known start fused with cross-subject XGBoost
