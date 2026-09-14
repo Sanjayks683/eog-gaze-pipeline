@@ -118,6 +118,26 @@ def _resolve_fs(dataset_name: str, root: str) -> Optional[float]:
     return _infer_fs_from_description(desc_candidates[0], fallback=CFG.data.fs_fallback_hz)
 
 
+def expand_cue_targets(trial: Trial) -> None:
+    """
+    Dataset 1's TargetGA holds one (H, V) row per cue, in order: each trial's forward
+    saccade target (ControlSignal 1), then the screen centre for its return saccade
+    (ControlSignal 2). Spread the rows over the samples so target_angle matches the
+    per-sample targets of Datasets 2-4: a cue's target holds from its onset until the
+    next cue, so the blink interval (ControlSignal 3) keeps the return target.
+    """
+    target, cs = trial.target_angle, trial.channels.get("ControlSignal")
+    if target is None or cs is None or len(target) == len(cs):
+        return
+    cs = np.asarray(cs)
+    onsets = np.flatnonzero(np.isin(cs, (1, 2)) & (cs != np.r_[0, cs[:-1]]))
+    if len(onsets) != len(target):
+        raise ValueError(f"[dataset1] {trial.subject_id}: {len(onsets)} cues in ControlSignal "
+                         f"but {len(target)} TargetGA rows")
+    cue_index = np.searchsorted(onsets, np.arange(len(cs)), side="right") - 1
+    trial.target_angle = np.asarray(target, dtype=np.float64)[np.clip(cue_index, 0, None)]
+
+
 def load_dataset1(max_subjects: Optional[int] = None) -> List[Trial]:
     """
     Load Dataset 1: Zero-Centred Bipolar EOG.
@@ -154,6 +174,8 @@ def load_dataset1(max_subjects: Optional[int] = None) -> List[Trial]:
         trials = _load_structured(subject_dirs, "dataset1", "bipolar", fs, max_subjects)
     else:
         trials = _load_flat(data_files, "dataset1", "bipolar", fs, max_subjects)
+    for trial in trials:
+        expand_cue_targets(trial)
 
     print(f"[Dataset 1] Loaded {len(trials)} trials from {root}")
     return trials
