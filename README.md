@@ -454,6 +454,8 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 | Robust line 60 s, Deep Conv1D+BiLSTM | 1.57 / 1.80 | 2.44 / 2.63 | 4.76 / 4.67 | 6.51 / 6.09 |
 | + context + range, XGBoost, weighted training | 1.33 / 1.56 | 2.26 / 2.48 | 4.42 / 4.46 | 6.18 / 5.84 |
 | + context + range, XGBoost, fixation windows only | 1.11 / 1.51 | 3.12 / 3.37 | 4.28 / 4.36 | 7.04 / 6.27 |
+| + context + range + head pose, XGBoost, weighted training | — | — | 4.20 / 3.95 | 5.99 / 5.25 |
+| + context + range + head pose, XGBoost, fixation windows only | — | — | **4.17 / 3.93** | 7.10 / 5.85 |
 | Known start, same subject, short (detected saccades) | 0.54 / 1.21 | — | 2.72 / 1.97 | — |
 | … outlier segments dropped | 0.47 / 1.03 | — | 2.67 / 1.73 | — |
 | … + head rotation, outlier segments dropped | — | — | **1.50 ± 0.31 / 1.50 ± 0.52** | — |
@@ -482,8 +484,14 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
   4.65 / 4.67°. It gets no context or range features.
 - **Dataset 3 keeps a smaller share of the gain:** weighted XGBoost removes 50% / 29% of the
   mean-angle error versus 65% / 45% on Dataset 2, and long known-start segments reach
-  8.04 / 13.02°. Free head movement is the obvious suspect, but Dataset 3 also has fewer subjects (8)
-  and these regression models use no head pose, so the cause is not isolated.
+  8.04 / 13.02°. Free head movement is the obvious suspect, but Dataset 3 also has fewer subjects (8),
+  so the cause is not isolated; head-pose features recover part of the gap (next point).
+- **Head-pose features (Dataset 3 regression):** `dataset3_range_head_causal_*` add head yaw,
+  pitch and roll, and their deviation from a past-only 60 s mean.
+  - **Weighted training:** fixation MAE falls from 4.42 / 4.46° to 4.20 / 3.95°, and all-window
+    RMSE from 6.18 / 5.84° to 5.99 / 5.25°.
+  - **Fixation windows only:** fixation MAE falls from 4.28 / 4.36° to 4.17 / 3.93°.
+  - Most of the gain is vertical.
 - **Known start against the Dataset 3 paper** (outliers dropped; the paper drops 7.77% of short and
   3.91% of long segments, this evaluation 2.9–3.4%):
   - **Short segments:** the head-rotation term brings the error to 1.50 / 1.50°, below the paper's
