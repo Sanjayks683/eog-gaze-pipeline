@@ -712,6 +712,31 @@ quantiles) keep their configured values and were not part of the selection.
   slightly worse. Nested selection gives 4.37 / 3.88°.
   Results: `reports/experiments/nested_cv/dataset2/realtime_range_settings/`.
 
+#### Nested cross-validation (Dataset 3)
+
+The same search on Dataset 3, whose dataset and context settings come from
+`dataset3_range_causal_weighted.yaml`. With 8 subjects, each outer training set has 6–7 of them.
+
+| Dataset 3, XGBoost | Real-time fixation MAE H / V | Real-time RMSE H / V | Offline fixation MAE H / V | Offline RMSE H / V |
+| :--- | :---: | :---: | :---: | :---: |
+| Nested, selected by fixation MAE | 4.25 ± 0.63 / 4.20 ± 1.26 | 6.89 / 6.31 | 3.67 ± 0.82 / 3.75 ± 1.05 | 6.26 / 5.66 |
+| Nested, selected by RMSE | 4.28 ± 0.67 / 4.41 ± 1.33 | 6.00 / 5.86 | 3.63 ± 0.76 / 3.76 ± 1.19 | 5.38 / 5.29 |
+| Best combination picked on the test folds (fixation MAE) | 4.32 / 3.92 | 6.88 / 5.99 | 3.55 / 3.68 | 5.28 / 5.17 |
+| 60 s baseline, engineered features, all windows | 4.65 / 4.67 | 6.35 / 6.11 | 3.77 / 4.16 | 5.49 / 5.56 |
+
+- **A shorter drift baseline wins with the head free.** Every real-time fold and 4 of 5 offline folds
+  pick 30 s rather than Dataset 2's 60 s.
+- **The range features carry over less well.** Real-time folds pick them in 3 of 5 folds (context
+  features alone in the other 2), and offline folds never pick them. They locate the screen centre
+  from recent gaze, and with the head free that centre moves in the face frame. The head-pose
+  features [above](#datasets-3-and-4) target exactly this.
+- **Choosing on the test folds was more optimistic with 8 subjects.** On the real-time track, the
+  best combination chosen on the test folds has 0.28° lower vertical error than nested selection
+  (3.92° vs 4.20°); offline the gaps are 0.12 / 0.07°.
+- **Against the Dataset 2 setup run on Dataset 3** (60 s, context + range, fixation windows:
+  4.28 / 4.36°), real-time nested selection is about equal horizontally and 0.16° better vertically.
+- Results: `reports/experiments/nested_cv/dataset3/{realtime,offline}/`.
+
 #### Per-subject significance
 
 `scripts/subject_statistics.py` compares two models on each subject's fixation MAE. It runs a
@@ -817,6 +842,7 @@ model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curve
 | `dataset4_known_start.yaml` | `reports/experiments/dataset4/known_start/` | Dataset 4 known-start protocol |
 | `scripts/nested_cv.py` with `dataset2_range_{causal,centred}_weighted.yaml` | `reports/experiments/nested_cv/dataset2/{realtime,offline}/` | Nested cross-subject selection of baseline window, features and training windows |
 | `scripts/nested_range_settings.py` with `dataset2_range_causal_weighted.yaml` | `reports/experiments/nested_cv/dataset2/realtime_range_settings/` | Nested selection of the rolling-range windows and quantiles |
+| `scripts/nested_cv.py` with `dataset3_range_causal_weighted.yaml` | `reports/experiments/nested_cv/dataset3/{realtime,offline}/` | Nested selection on Dataset 3 |
 | `scripts/range_stress_test.py` with `dataset2_range_causal_weighted.yaml` | `reports/experiments/range_stress_test/dataset2/` | Range features when test gaze covers only part of the screen |
 | `scripts/subject_statistics.py` | `reports/experiments/statistics/` | Per-subject Wilcoxon tests and bootstrap confidence intervals |
 | `scripts/known_start_fusion.py --dataset datasetN` | `reports/experiments/known_start_fusion/datasetN/` | Known start fused with cross-subject XGBoost |
