@@ -185,7 +185,12 @@ def run_train_deep():
 
     _sync_in_channels(X_cls)
 
-    train_cv(X_cls, y_cls, y_reg, folds, metadata=meta)
+    context = None
+    if CFG.model.context_features:
+        context, _, _ = load_processed("context")
+        CFG.model.context_dim = int(context.shape[1])
+        print(f"The deep model gets {context.shape[1]} context features")
+    train_cv(X_cls, y_cls, y_reg, folds, metadata=meta, context=context)
 
 
 def run_ablations():

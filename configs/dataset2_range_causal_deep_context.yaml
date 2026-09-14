@@ -1,0 +1,47 @@
+# configs/dataset2_range_causal_deep_context.yaml
+# ================================================
+# Dataset 2, real-time: the deep Conv1D+BiLSTM model of dataset2_robust_line_causal.yaml,
+# given the context and rolling-range features of dataset2_range_causal.yaml
+# (model.context_features). The features are standardised with each fold's training
+# windows and joined to the regression head's input; the convolutional and recurrent
+# layers still see only the 300 ms window. Uses the processed data of
+# dataset2_range_causal.yaml (same windows and context arrays), so no preprocess run.
+#
+#   python main.py --config configs/dataset2_range_causal_deep_context.yaml --phase train_deep
+#   python main.py --config configs/dataset2_range_causal_deep_context.yaml --phase compare
+#   python main.py --config configs/dataset2_range_causal_deep_context.yaml --phase calibrate
+
+data:
+  datasets_to_load:
+    - "dataset2"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "robust_line"
+  baseline_window_sec: 60.0
+  baseline_causal: true
+  baseline_clip_mad: 3.0
+  context_baselines:
+    - ["robust_mean", 30.0]
+    - ["robust_mean", 120.0]
+    - ["robust_line", 120.0]
+  context_lags_sec: [1.0, 2.0, 4.0, 8.0]
+  context_range_windows_sec: [60.0, 120.0, 240.0]
+  context_range_quantiles: [[0.10, 0.90], [0.05, 0.95]]
+
+model:
+  model_type: "conv_bilstm"
+  loss_type: "range_preserving"
+  lambda_corr: 0.5
+  lambda_var: 0.2
+  huber_delta: 2.0
+  calibration_prompt_sec: 30.0
+  lr: 0.0003
+  max_epochs: 150
+  early_stopping_patience: 15
+  context_features: true
+
+paths:
+  data_processed: "data/processed_range_causal"
+  results: "reports/experiments/range_causal_deep_context"
+  reports_figures: "reports/experiments/range_causal_deep_context/figures"

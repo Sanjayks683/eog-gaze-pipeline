@@ -86,6 +86,11 @@ class ModelConfig:
     model_type: str = "conv_bilstm"
     loss_type: str = "uncertainty"
     in_channels: int = 2
+    # conv_bilstm only: feed the classical context / range features (the processed
+    # "context" arrays, standardised per fold) to the regression head; context_dim is
+    # set from the data at training time.
+    context_features: bool = False
+    context_dim: int = 0
     conv_channels: List[int] = field(default_factory=lambda: [32, 64, 128])
     kernel_sizes: List[int] = field(default_factory=lambda: [7, 5, 3])
     dropout: float = 0.3

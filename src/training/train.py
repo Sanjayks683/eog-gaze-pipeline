@@ -46,11 +46,15 @@ def config_fingerprint(input_shape: Tuple[int, ...]) -> str:
     """
     model_cfg = dataclasses.asdict(CFG.model)
     model_cfg.pop("calibration_prompt_sec", None)
-    # Classical-only context features and the evaluation-only fixation definition
-    # never reach the deep model, so they must not invalidate its checkpoints.
+    # Context features and the evaluation-only fixation definition never reach a deep
+    # model without model.context_features, so they must not invalidate its checkpoints
+    # (nor must the context switches themselves, which older checkpoints predate).
     preprocessing_cfg = dataclasses.asdict(CFG.preprocessing)
-    preprocessing_cfg.pop("context_baselines", None)
-    preprocessing_cfg.pop("context_lags_sec", None)
+    if not CFG.model.context_features:
+        for key in ("context_features", "context_dim"):
+            model_cfg.pop(key, None)
+        preprocessing_cfg.pop("context_baselines", None)
+        preprocessing_cfg.pop("context_lags_sec", None)
     segmentation_cfg = dataclasses.asdict(CFG.segmentation)
     segmentation_cfg.pop("fixation_settle_ms", None)
     payload = {
@@ -118,15 +122,29 @@ def make_dataloader(
     y_angle: np.ndarray,
     batch_size: int,
     shuffle: bool = True,
+    context: Optional[np.ndarray] = None,
 ) -> DataLoader:
-    """Create a DataLoader from numpy arrays."""
-    dataset = TensorDataset(
-        torch.from_numpy(X).float(),
-        torch.from_numpy(y_class).long(),
-        torch.from_numpy(y_angle).float(),
-    )
-    return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
+    """Create a DataLoader from numpy arrays; batches are (X, y_class, y_angle[, context])."""
+    tensors = [torch.from_numpy(X).float(), torch.from_numpy(y_class).long(), torch.from_numpy(y_angle).float()]
+    if context is not None:
+        tensors.append(torch.from_numpy(context).float())
+    return DataLoader(TensorDataset(*tensors), batch_size=batch_size, shuffle=shuffle,
                       num_workers=0, pin_memory=torch.cuda.is_available())
+
+
+def _forward(model: nn.Module, X_batch: torch.Tensor, context: list, device: torch.device):
+    """model(X), or model(X, context) for batches that carry context features."""
+    if context:
+        return model(X_batch, context[0].to(device))
+    return model(X_batch)
+
+
+def _standardise_context(train: np.ndarray, *others: np.ndarray) -> List[np.ndarray]:
+    """Scale context features by the training windows' mean and SD, clipped to ±10 SD."""
+    mean, std = np.nanmean(train, axis=0), np.nanstd(train, axis=0)
+    mean[~np.isfinite(mean)] = 0.0
+    std[~np.isfinite(std) | (std < 1e-6)] = 1.0
+    return [np.clip(np.nan_to_num((a - mean) / std), -10.0, 10.0).astype(np.float32) for a in (train, *others)]
 
 
 def train_epoch(
@@ -144,10 +162,11 @@ def train_epoch(
     
     mixup_alpha = getattr(CFG.model, "mixup_alpha", 0.0)
 
-    for X_batch, y_cls, y_ang in loader:
+    for X_batch, y_cls, y_ang, *context in loader:
         X_batch = X_batch.to(device)
         y_cls = y_cls.to(device)
         y_ang = y_ang.to(device)
+        ctx = context[0].to(device) if context else None
 
         if getattr(CFG.preprocessing, "use_augmentation", False):
             aug = CFG.augmentation
@@ -159,16 +178,23 @@ def train_epoch(
             )
 
         if mixup_alpha > 0:
-            X_batch, y_cls_a, y_cls_b, y_ang_mixed, lam = mixup_batch(
-                X_batch, y_cls, y_ang, alpha=mixup_alpha
+            # context rows are blended with the same partner and weight as their windows
+            shape, n_values = X_batch.shape, X_batch[0].numel()
+            packed = X_batch if ctx is None else torch.cat([X_batch.flatten(1), ctx], dim=1)
+            packed, y_cls_a, y_cls_b, y_ang_mixed, lam = mixup_batch(
+                packed, y_cls, y_ang, alpha=mixup_alpha
             )
+            if ctx is None:
+                X_batch = packed
+            else:
+                X_batch, ctx = packed[:, :n_values].reshape(shape), packed[:, n_values:]
         else:
             y_cls_a = y_cls_b = y_cls
             y_ang_mixed = y_ang
             lam = 1.0
 
         optimizer.zero_grad()
-        logits, angles = model(X_batch)
+        logits, angles = model(X_batch) if ctx is None else model(X_batch, ctx)
         
         if mixup_alpha > 0 and lam < 1.0:
             loss_a, ce_a, mse_a = criterion(logits, y_cls_a, angles, y_ang_mixed)
@@ -212,12 +238,12 @@ def eval_epoch(
     all_preds, all_true, all_angle_pred, all_angle_true = [], [], [], []
 
     with torch.no_grad():
-        for X_batch, y_cls, y_ang in loader:
+        for X_batch, y_cls, y_ang, *context in loader:
             X_batch = X_batch.to(device)
             y_cls = y_cls.to(device)
             y_ang = y_ang.to(device)
 
-            logits, angles = model(X_batch)
+            logits, angles = _forward(model, X_batch, context, device)
             loss, ce, mse = criterion(logits, y_cls, angles, y_ang)
 
             total_loss += loss.item() * len(X_batch)
@@ -306,6 +332,7 @@ def train_cv(
     results_dir: str = None,
     checkpoint_dir: str = None,
     preds_dir: str = None,
+    context: Optional[np.ndarray] = None,
 ) -> Dict:
     """
     Train EOGMultiTaskNet across all CV folds.
@@ -321,6 +348,8 @@ def train_cv(
     results_dir   : where to save loss curves and results JSON
     checkpoint_dir: where to save best model per fold
     preds_dir     : where to save angle predictions for ablation scripts
+    context       : optional (n_windows, n_features) context features for a model built
+                    with model.context_features; standardised with each fold's training windows
 
     Returns
     -------
@@ -395,9 +424,15 @@ def train_cv(
         if meta_te:
             meta_te = [meta_te[i] for i, v in enumerate(valid_te) if v]
 
-        train_loader = make_dataloader(X_tr, y_tr_c, y_tr_r, batch_size, shuffle=True)
-        val_loader = make_dataloader(X_va, y_va_c, y_va_r, batch_size, shuffle=False)
-        test_loader = make_dataloader(X_te, y_cls_te, y_ang_te, batch_size, shuffle=False)
+        ctx_tr = ctx_va = ctx_te = None
+        if context is not None:
+            ctx_fold = context[train_idx]
+            ctx_tr, ctx_va, ctx_te = _standardise_context(
+                ctx_fold[train_mask][valid_tr], ctx_fold[val_idx][valid_va], context[test_idx][valid_te])
+
+        train_loader = make_dataloader(X_tr, y_tr_c, y_tr_r, batch_size, shuffle=True, context=ctx_tr)
+        val_loader = make_dataloader(X_va, y_va_c, y_va_r, batch_size, shuffle=False, context=ctx_va)
+        test_loader = make_dataloader(X_te, y_cls_te, y_ang_te, batch_size, shuffle=False, context=ctx_te)
 
         model = build_model(device=device)
         fold_class_weights = None
@@ -515,6 +550,7 @@ def train_cv(
     aggregate = {
         "model": model.__class__.__name__,
         "model_type": model_type,
+        "context_features": int(context.shape[1]) if context is not None else 0,
         "folds": all_fold_results,
         "pooled_f1_weighted": float(f1_score(all_true_arr, all_preds_arr, average="weighted", zero_division=0)),
         "pooled_f1_macro": float(f1_score(all_true_arr, all_preds_arr, average="macro", zero_division=0)),

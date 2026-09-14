@@ -304,16 +304,20 @@ class EOGConvLSTMNet(nn.Module):
             nn.Linear(64, num_classes),
         )
 
+        # Optional per-window context (CFG.model.context_features): classical context /
+        # range features that a 300 ms window cannot see, joined to the regression input.
+        self.context_dim = CFG.model.context_dim if CFG.model.context_features else 0
+
         self.reg_head = nn.Sequential(
-            nn.Linear(embed_dim + in_channels, 64),
+            nn.Linear(embed_dim + in_channels + self.context_dim, 64),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(64, regression_outputs),
         )
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, context: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         raw_mean = x.mean(dim=2)
-        
+
         conv_feat = self.conv_backbone(x)
         conv_feat = conv_feat.permute(0, 2, 1)
         lstm_out, _ = self.lstm(conv_feat)
@@ -321,9 +325,13 @@ class EOGConvLSTMNet(nn.Module):
         embedding = self.layer_norm(embedding)
 
         logits = self.cls_head(embedding)
-        
-        reg_input = torch.cat([embedding, raw_mean], dim=1)
-        angles = self.reg_head(reg_input)
+
+        parts = [embedding, raw_mean]
+        if self.context_dim:
+            if context is None:
+                raise ValueError("this model was built with context features; pass them to forward()")
+            parts.append(context)
+        angles = self.reg_head(torch.cat(parts, dim=1))
         return logits, angles
 
     def predict_classes(self, x: torch.Tensor) -> torch.Tensor:
@@ -434,6 +442,8 @@ def build_model(
         device = get_device()
     if model_type is None:
         model_type = CFG.model.model_type
+    if CFG.model.context_features and model_type != "conv_bilstm":
+        raise ValueError("model.context_features is only implemented for model_type='conv_bilstm'")
 
     if model_type == "conv1d":
         model = EOGMultiTaskNet()

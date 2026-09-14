@@ -48,6 +48,9 @@ def rebuild_angle_preds(model_type: Optional[str] = None):
     """Re-run inference using saved best-fold checkpoints and save predictions."""
     preds_dir = os.path.join(CFG.paths.data_processed, "angle_preds")
     model_type = model_type or CFG.model.model_type
+    if CFG.model.context_features:
+        raise NotImplementedError("rebuilding predictions of a model with context features is not supported; "
+                                  "use the angle_preds saved by train_deep")
 
     folds, _ = load_folds()
 
