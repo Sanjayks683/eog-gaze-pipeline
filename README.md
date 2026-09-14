@@ -291,6 +291,7 @@ range features.
 | *Train-fold mean angle* | — | all | 12.56 ± 0.93 | 7.05 ± 0.60 | 14.07 / 8.00 |
 | Robust line 60 s, XGBoost | yes | all | 5.66 ± 1.60 | 4.56 ± 1.26 | 7.67 / 6.06 |
 | Robust line 60 s, Deep Conv1D+BiLSTM | yes | all | 5.48 ± 1.43 | 4.58 ± 1.11 | 7.37 / 6.08 |
+| + context + range, Deep Conv1D+BiLSTM | yes | all | 4.95 ± 1.16 | 4.23 ± 1.20 | 6.83 / 5.70 |
 | + context, XGBoost | yes | all | 4.87 ± 1.55 | 4.18 ± 1.16 | 6.87 / 5.60 |
 | + context, XGBoost | yes | fixation | 4.79 ± 1.54 | 4.06 ± 1.25 | 7.88 / 5.96 |
 | + context + range, XGBoost | yes | all | 4.47 ± 1.22 | 3.96 ± 1.08 | **6.34 / 5.36** |
@@ -319,6 +320,14 @@ range features.
   ($R^2$ 0.86 / 0.68).
 - **Range features also narrow the spread across subjects** (fixation MAE SD 1.54 → 1.12° H
   real-time, 0.85 → 0.56° H offline), consistent with them estimating each subject's gain.
+- **The deep model gains from the same context features**
+  (`dataset2_range_causal_deep_context.yaml`: standardised per fold, joined to its regression head).
+  - **With vs without them:** fixation MAE improves from 5.48 / 4.58° to 4.95 / 4.23°, and RMSE
+    from 7.37 / 6.08° to 6.83 / 5.70°.
+  - **Against XGBoost:** it still trails XGBoost with those features, also trained on all windows
+    (4.47 / 3.96°).
+  - **Few-shot calibration:** fitting on each subject's first 30 s again increases the error
+    (RMSE 6.82 / 5.69° → 7.70 / 6.85°).
 - **Not a like-for-like win:** the paper excludes outlier segments and fits every parameter on the
   test subject; this pipeline does neither, but scores 400 ms-settled windows rather than
   EOG-detected fixation samples, and uses whole ~13 min recordings rather than 32 s segments.
@@ -761,6 +770,7 @@ model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curve
 | `dataset2_robust_line_causal.yaml` | `reports/experiments/robustline60_causal/` | Past-only 60 s robust line (real-time) |
 | `dataset2_context_causal{,_fixation}.yaml`, `dataset2_context_centred_fixation.yaml` | `reports/experiments/context_*/` | Context features |
 | `dataset2_range_causal{,_weighted,_fixation}.yaml`, `dataset2_range_centred_{fixation,weighted}.yaml` | `reports/experiments/range_*/` | Context + rolling-range features; training-window choice |
+| `dataset2_range_causal_deep_context.yaml` | `reports/experiments/range_causal_deep_context/` | Deep model with context + range features; few-shot calibration |
 | `dataset2_known_start.yaml` | `reports/experiments/known_start/` | The paper's known-start protocol (separate task) |
 | `dataset1_robust_line_causal.yaml` | `reports/experiments/dataset1/robustline60_causal/` | Dataset 1 real-time baseline (bipolar H and V) |
 | `dataset1_range_causal_{weighted,fixation}.yaml` | `reports/experiments/dataset1/range_causal_*/` | Dataset 1 with the best Dataset 2 setup |

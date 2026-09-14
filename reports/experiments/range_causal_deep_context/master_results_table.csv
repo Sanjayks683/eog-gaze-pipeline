@@ -1,0 +1,6 @@
+method,dataset,rmse_h_deg,rmse_v_deg,mae_h_deg,mae_v_deg,fixation_mae_h_deg,fixation_mae_v_deg,f1_weighted,notes
+Deep multi-task (conv_bilstm / EOGConvLSTMNet),Dataset 2 only,6.828496787557679,5.698578493315892,5.295872688293457,4.468576431274414,4.948173883106839,4.228248481777461,0.42393810161987083,Multi-task: classification + regression jointly
+Published: Barbara_2023_DKF_short,Dataset 2,,,,,1.64,1.97,,BSPC 86 (2023) Table 2: ±0.82 / ±0.34; within-subject; mistake-free segments; 6.85% outliers excluded
+Published: Barbara_2023_DKF_long,Dataset 2,,,,,5.23,6.59,,BSPC 86 (2023) Table 3: ±2.00 / ±3.10; within-subject; 5.83% outlier segments excluded
+Published: Barbara_2019_differencing_short,Dataset 2,,,,,1.51,1.95,,BSPC 86 (2023) Table 2 state of the art: ±0.55 / ±0.29; same protocol as DKF short
+Published: Barbara_2019_differencing_long,Dataset 2,,,,,5.82,8.04,,BSPC 86 (2023) Table 3 state of the art: ±2.70 / ±2.96; same protocol as DKF long
