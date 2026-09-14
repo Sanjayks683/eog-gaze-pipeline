@@ -24,6 +24,46 @@ Models compared:
 
 ---
 
+## Results at a Glance
+
+The best results so far; the sections below give every number's source. All figures are fixation
+MAE, horizontal / vertical, in degrees, averaged over subjects.
+
+**Absolute gaze in real time, for subjects never seen in training.** This is 5-fold cross-subject
+XGBoost with a past-only drift baseline and context + range features:
+
+| Dataset | Subjects | Always predict the mean angle | Best | How |
+| :--- | :---: | :---: | :---: | :--- |
+| 1 (bipolar, chin rest) | 6 | 5.91 / 3.28 | **1.70 / 2.18** | 60 s baseline, weighted training |
+| 2 (monopolar, chin rest) | 10 | 12.56 / 7.05 | **4.49 / 3.81** | settings chosen by nested cross-validation |
+| 3 (monopolar, free head) | 8 | 8.90 / 6.28 | **4.17 / 3.93** | + head-pose features, fixation windows |
+| 4 (isotropic, chin rest) | 14 | 3.82 / 3.83 | **0.92 / 1.34** | settings chosen by nested cross-validation |
+
+Offline, with a centred baseline, Dataset 2 reaches 3.13 / 3.39 (nested cross-validation). None of
+the papers reports cross-subject absolute gaze, so this table has no published rows.
+
+**Known start, the task the papers report.** Same subject, outlier segments dropped:
+
+| Dataset, segments | This pipeline | Published (Barbara et al.) |
+| :--- | :--- | :---: |
+| 2, short 1–2 s | 0.92 / 1.33 (detected saccades) | 1.64 / 1.97 (dual Kalman filter) |
+| 2, long 32 s | 4.21 / 8.36 (detected saccades); **3.36 / 3.38** fused with cross-subject XGBoost | 5.23 / 6.59 |
+| 3, short 1–2 s | **1.50 / 1.50** (detected saccades + head rotation) | 1.85 / 2.19 (Kalman filter + VOR model) |
+| 3, long 32 s | 5.33 / 12.42 (+ head rotation); **4.01 / 4.01** fused with cross-subject XGBoost | 4.64 / 6.10 |
+
+- **Dataset 2 short segments:** blink windows help the score, since a rejected blink scores 0. On
+  saccade windows alone it is 1.75 / 2.09.
+- **Fused estimator:** it uses an XGBoost model trained on the other subjects' labelled recordings,
+  which the published filters do not use. Without fusion, long-segment vertical error is worse than
+  the paper's.
+- **Significance:** the context + range features help significantly on Datasets 1, 2 and 4, but not
+  on Dataset 3 (8 subjects).
+- **Limitation:** a real-time drift baseline absorbs any gaze offset that lasts as long as its
+  window, so gaze that stays on one side of the screen defeats it
+  ([stress test](#range-features-when-test-gaze-covers-only-part-of-the-screen-dataset-2)).
+
+---
+
 ## Setup
 
 ```bash
@@ -35,7 +75,9 @@ python -m venv .venv
 .venv\Scripts\activate        # Windows
 # source .venv/bin/activate   # Linux/macOS
 
-# 3. Install dependencies
+# 3. Install dependencies (the versions the results were produced with, Python 3.11).
+#    For GPU training install the CUDA build of PyTorch first:
+#    pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
 ```
 
@@ -158,7 +200,10 @@ To eliminate cross-montage variance and utilize the full spatial coverage of the
 python main.py --config configs/dataset2_all_eog.yaml --phase all
 ```
 
-### Master Results on Dataset 2 (Monopolar Stationary)
+### First results on Dataset 2: high-pass baseline
+
+> These are the pipeline's original results with a 0.2 Hz high-pass filter. Every later experiment
+> improves on them; the current best numbers are in [Results at a Glance](#results-at-a-glance).
 
 Results after the 2026-09-10 fixes (256 Hz sampling rate, subject-held-out validation,
 least-squares calibration). Every number traces to a JSON file in `reports/` and to
@@ -181,11 +226,12 @@ Few-shot calibration (per-subject least-squares gain/offset fitted on each test 
 30 s) moves the deep model from 11.42° / 7.20° to 11.67° / 7.41° RMSE on the remaining windows
 (`reports/calibration_results.json`).
 
-> **Key takeaway**: on unseen subjects the deep model and XGBoost are roughly tied, explaining
+> **Key takeaway for this high-pass pipeline**: on unseen subjects the deep model and XGBoost are roughly tied, explaining
 > only ~34% of horizontal and ~19% of vertical gaze-angle variance: 19% / 10% lower RMSE than
 > always predicting the mean angle. Per-subject calibration slightly *increases* error, so the gap is not a
 > per-subject gain/offset problem. The main limitation is the input: a 0.2 Hz high-pass on 300 ms
-> windows removes most of the absolute (DC) gaze-position information.
+> windows removes most of the absolute (DC) gaze-position information. The experiments below keep
+> the DC level instead.
 
 ### Experiment: moving-median drift removal
 
@@ -530,6 +576,8 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 | Robust line 60 s, Deep Conv1D+BiLSTM | 1.57 / 1.80 | 2.44 / 2.63 | 4.76 / 4.67 | 6.51 / 6.09 |
 | + context + range, XGBoost, weighted training | 1.33 / 1.56 | 2.26 / 2.48 | 4.42 / 4.46 | 6.18 / 5.84 |
 | + context + range, XGBoost, fixation windows only | 1.11 / 1.51 | 3.12 / 3.37 | 4.28 / 4.36 | 7.04 / 6.27 |
+| 30 s baseline + context + range, XGBoost, weighted training (nested-CV run) | 1.13 / 1.37 | 2.11 / 2.37 | 4.11 / 4.44 | 5.81 / 5.93 |
+| 30 s baseline + context + range, XGBoost, fixation windows only (nested-CV run) | **0.91 / 1.32** | 2.99 / 3.21 | **4.10** / 4.25 | 6.72 / 6.33 |
 | + context + range + head pose, XGBoost, weighted training | — | — | 4.20 / 3.95 | 5.99 / 5.25 |
 | + context + range + head pose, XGBoost, fixation windows only | — | — | **4.17 / 3.93** | 7.10 / 5.85 |
 | Known start, same subject, short (detected saccades) | 0.54 / 1.21 | — | 2.72 / 1.97 | — |
@@ -544,6 +592,14 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 | *Published: dual Kalman filter + VOR model, long* | — | — | 4.64 ± 1.37 / 6.10 ± 2.58 | — |
 | *Published: signal differencing, long* | — | — | 8.13 ± 1.15 / 11.25 ± 5.03 | — |
 
+- **A 30 s drift baseline suits Datasets 3 and 4 better than Dataset 2's 60 s.** With fixation-only
+  training, fixation MAE falls from 1.11 / 1.51° to 0.91 / 1.32° on Dataset 4 and from 4.28 / 4.36°
+  to 4.10 / 4.25° on Dataset 3.
+  - **Where the 30 s rows come from:** the outer-fold scores of the nested cross-validation runs
+    (same pipeline code, GPU), not separate configs.
+  - **Why they were added:** nested selection picked 30 s in every Dataset 4 fold and every
+    real-time Dataset 3 fold ([nested CV](#nested-cross-validation-dataset-3)).
+  - **Not tested:** head-pose features combined with a 30 s baseline.
 - **Context and range features with weighted training:** XGBoost's fixation MAE drops from
   1.90 / 2.26 to 1.33 / 1.56° on Dataset 4 and from 4.65 / 4.67 to 4.42 / 4.46° on Dataset 3.
   On Dataset 4 all 14 subjects improve on both axes (Wilcoxon signed-rank p < 0.001; bootstrap
@@ -981,6 +1037,6 @@ slightly different numbers from the CPU XGBoost used for the Dataset 2 configs.
 - [x] Drift removal happens BEFORE normalization, not after (`preprocess_trials`: drift removal, then per-subject z-score)
 - [x] Bipolar sign convention verified per dataset — Datasets 2–4 with `scripts/verify_montage.py`, Dataset 1 from the EOG steps at cue onsets (see `src/data/unify.py`)
 - [x] Class imbalance (blink rarity) accounted for — `class_weight="balanced"` for RF / SVC, `model.auto_class_weights` for the deep model
-- [ ] Head-pose correction on Dataset 3 validated with before/after ablation (Phase 9)
+- [x] Head pose on Dataset 3 checked with and without — the targets are already face-frame angles and need no correction; the known-start head-rotation term and the regression head-pose features were each compared with and without (see [Datasets 3 and 4](#datasets-3-and-4))
 - [x] Every reported metric traces to a saved JSON file in `reports/` (Dataset 4's 59 MB deep-model JSON stays out of git; its numbers are in the master table next to it)
 - [x] Deep model results reported honestly even if it loses to the classical baseline
