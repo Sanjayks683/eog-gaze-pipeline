@@ -22,6 +22,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from src.config import CFG, get_device
+from src.evaluation.metrics import compute_fixation_metrics
 from src.models.deep_multitask import MultiTaskLoss, build_model, build_loss
 from src.training.cv_splits import FoldList
 
@@ -45,10 +46,17 @@ def config_fingerprint(input_shape: Tuple[int, ...]) -> str:
     """
     model_cfg = dataclasses.asdict(CFG.model)
     model_cfg.pop("calibration_prompt_sec", None)
+    # Classical-only context features and the evaluation-only fixation definition
+    # never reach the deep model, so they must not invalidate its checkpoints.
+    preprocessing_cfg = dataclasses.asdict(CFG.preprocessing)
+    preprocessing_cfg.pop("context_baselines", None)
+    preprocessing_cfg.pop("context_lags_sec", None)
+    segmentation_cfg = dataclasses.asdict(CFG.segmentation)
+    segmentation_cfg.pop("fixation_settle_ms", None)
     payload = {
         "model": model_cfg,
-        "preprocessing": dataclasses.asdict(CFG.preprocessing),
-        "segmentation": dataclasses.asdict(CFG.segmentation),
+        "preprocessing": preprocessing_cfg,
+        "segmentation": segmentation_cfg,
         "augmentation": dataclasses.asdict(CFG.augmentation),
         "data": dataclasses.asdict(CFG.data),
         "cv": {k: getattr(CFG.cv, k) for k in ("strategy", "k", "random_seed")},
@@ -517,6 +525,7 @@ def train_cv(
         "pooled_mae_v_deg": float(mean_absolute_error(all_ang_true[:, 1], all_ang_pred[:, 1])),
         "pooled_r2_h": float(r2_score(all_ang_true[:, 0], all_ang_pred[:, 0])),
         "pooled_r2_v": float(r2_score(all_ang_true[:, 1], all_ang_pred[:, 1])),
+        **compute_fixation_metrics(all_ang_true, all_ang_pred, all_test_meta),
         "test_metadata": all_test_meta,
     }
 

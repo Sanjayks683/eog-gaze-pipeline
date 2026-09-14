@@ -26,6 +26,19 @@ class PreprocessingConfig:
     polynomial_detrend_order: int = 2
     median_baseline_sec: float = 30.0
     median_baseline_causal: bool = False
+    baseline_window_sec: float = 30.0
+    baseline_causal: bool = False
+    baseline_clip_mad: float = 3.0
+    # Extra per-window context for classical regression (empty = off): window means
+    # of other baseline estimates minus the main one, as [method, window_sec] pairs
+    # (same causal setting as the main baseline), and of the main signal lagged by
+    # context_lags_sec seconds.
+    context_baselines: List[list] = field(default_factory=list)
+    context_lags_sec: List[float] = field(default_factory=list)
+    # Rolling-quantile range features over these windows (empty = off), one set per
+    # [low, high] quantile pair; see src/features/context.py.
+    context_range_windows_sec: List[float] = field(default_factory=list)
+    context_range_quantiles: List[list] = field(default_factory=lambda: [[0.10, 0.90], [0.05, 0.95]])
     use_augmentation: bool = True
 
 @dataclass
@@ -39,6 +52,10 @@ class SegmentationConfig:
         "blink"
     ])
     majority_overlap_threshold: float = 0.5
+    # A window is a "fixation" window when it lies inside a ControlSignal 1/2
+    # interval, starts this long after the last target change and contains no
+    # change. Saccades on Dataset 2 peak ~200 ms and settle by ~400 ms after the cue.
+    fixation_settle_ms: float = 400.0
 
 @dataclass
 class CVConfig:
@@ -48,6 +65,11 @@ class CVConfig:
     use_grid_search: bool = False
     grid_search_max_samples: int = 20000
     svm_max_train_samples: int = 50000
+    # Which training windows classical regressors are fit on: "all", "fixation"
+    # (fixation windows only) or "weighted" (all windows, non-fixation ones weighted
+    # by regression_nonfixation_weight). Test windows are never filtered.
+    regression_train_windows: str = "all"
+    regression_nonfixation_weight: float = 0.2
 
 @dataclass
 class ModelConfig:
@@ -130,6 +152,44 @@ class PathConfig:
         return os.path.join(self.data_processed, "cv_folds.pkl")
 
 @dataclass
+class KnownStartConfig:
+    """Separate known-start evaluation (src/evaluation/known_start.py)."""
+    lowpass_hz: float = 20.0
+    speed_onset_sd: float = 8.0       # event must reach this speed (robust velocity SDs)
+    speed_offset_sd: float = 4.0      # event extends while speed stays above this
+    merge_ms: float = 150.0           # merge events closer than this (blink strokes, corrective saccades)
+    min_event_ms: float = 8.0
+    level_window_ms: float = 100.0    # median level window before / after an event
+    after_gap_ms: float = 50.0        # skip this long after an event before measuring its end level
+    # Blink = vertical excursion > blink_excursion_ratio x net vertical displacement AND the
+    # returned part > blink_return_scale x median |vertical displacement| of events shorter
+    # than saccade_max_ms. On Dataset 2 this flags 90% of blink-interval events and 1% of
+    # cue-driven saccades (blinks last ~190-400 ms, saccades ~50-110 ms).
+    blink_excursion_ratio: float = 3.0
+    blink_return_scale: float = 1.5
+    saccade_max_ms: float = 150.0
+    blink_pair_ms: float = 500.0      # two events this close whose vertical displacements cancel = blink
+    blink_pair_residual: float = 0.3
+    # Ground-truth labels (paper App. E.1), from sample-to-sample EOG differences
+    gt_fixation_sd: float = 5.0       # |difference| above this many robust SDs on either channel = moving
+    gt_merge_ms: float = 20.0         # fixation gaps shorter than this inside a movement count as movement
+    gt_min_saccade_ms: float = 10.0   # shorter movement runs are ignored when judging subject mistakes
+    gt_blink_ratio: float = 0.5       # blink spike threshold = this x median largest |V difference| per blink interval
+    gt_blink_second_ratio: float = 0.5  # the opposite closing spike must exceed this x the threshold
+    gt_blink_max_ms: float = 500.0
+    # Windows and subject mistakes (paper Sec. 4.5.3)
+    response_min_ms: float = 80.0     # response saccade must start this long after the cue ...
+    response_max_ms: float = 600.0    # ... and no later than this
+    premature_ms: float = 150.0       # a saccade starting this close to the window end is premature
+    blink_margin_ms: float = 150.0    # saccade-labelled strokes this close to a labelled blink belong to it
+    min_scored_ms: float = 50.0       # windows need at least this many fixation samples to be scored
+    n_subsets: int = 3
+    short_saccade_windows: int = 66   # per subset, as in the paper
+    short_blink_windows: int = 33
+    long_segments: int = 8            # per subset, each of long_trials consecutive 4 s trials
+    long_trials: int = 8
+
+@dataclass
 class DeviceConfig:
     auto_detect_cuda: bool = True
 
@@ -143,13 +203,14 @@ class Config:
     data: DataConfig = field(default_factory=DataConfig)
     paths: PathConfig = field(default_factory=PathConfig)
     device: DeviceConfig = field(default_factory=DeviceConfig)
+    known_start: KnownStartConfig = field(default_factory=KnownStartConfig)
 
 
 CFG = Config()
 
 _CONFIG_SECTIONS = (
     "preprocessing", "segmentation", "cv", "model",
-    "augmentation", "data", "paths", "device",
+    "augmentation", "data", "paths", "device", "known_start",
 )
 
 

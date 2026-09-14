@@ -56,6 +56,8 @@ def run_preprocess():
 
     print("[2/3] Unifying montages, filtering, and normalizing...")
     trials = [to_common_schema(t) for t in trials]
+    use_context = bool(CFG.preprocessing.context_baselines or CFG.preprocessing.context_lags_sec)
+    raw_signals = [{k: v.copy() for k, v in t.channels.items()} for t in trials] if use_context else None
     trials = preprocess_trials(trials)
 
     print("[3/3] Windowing and saving processed arrays...")
@@ -65,6 +67,9 @@ def run_preprocess():
     print_class_balance(y_cls)
     save_processed(X_cls, y_cls, meta, "classification")
     save_processed(X_reg, y_reg, meta, "regression")
+    if use_context:
+        from src.features.context import make_context_features
+        save_processed(make_context_features(trials, raw_signals, meta), y_reg, meta, "context")
     save_preprocessed_trials(trials)
 
     subject_ids = get_subject_ids_from_metadata(meta)
@@ -140,6 +145,10 @@ def run_train_classical():
     print("Extracting hand-crafted features for classical ML...")
     Xf_cls = _extract_features_respecting_fs(X_cls, meta)
     Xf_reg = _extract_features_respecting_fs(X_reg, meta)
+    if CFG.preprocessing.context_baselines or CFG.preprocessing.context_lags_sec:
+        X_ctx, _, _ = load_processed("context")
+        print(f"Adding {X_ctx.shape[1]} context features to the regression features")
+        Xf_reg = np.hstack([Xf_reg, X_ctx])
 
     print("\n" + "="*60)
     print("  Phase 6: Classical Machine Learning Baselines")
@@ -148,7 +157,7 @@ def run_train_classical():
     print("\nTrivial baselines: majority class / train-fold mean angle")
     save_results(run_classification_cv(Xf_cls, y_cls, folds, model_name="majority"),
                  "baseline_clf_majority")
-    save_results(run_regression_cv(Xf_reg, y_reg, folds, model_name="mean"),
+    save_results(run_regression_cv(Xf_reg, y_reg, folds, model_name="mean", metadata=meta),
                  "baseline_reg_mean")
 
     for clf in ["svc", "rf"]:
@@ -158,7 +167,7 @@ def run_train_classical():
 
     for reg in ["svr", "xgb"]:
         print(f"\nTraining Classical Regressor: {reg.upper()}")
-        r = run_regression_cv(Xf_reg, y_reg, folds, model_name=reg)
+        r = run_regression_cv(Xf_reg, y_reg, folds, model_name=reg, metadata=meta)
         save_results(r, f"classical_reg_{reg}")
 
 
@@ -206,6 +215,21 @@ def run_calibrate():
     run_calibration_pipeline(model_type=CFG.model.model_type)
 
 
+def run_known_start():
+    print("\n" + "=" * 60)
+    print("  Known-start protocol (separate from the main results)")
+    print("=" * 60)
+    from src.data.loaders import load_all_datasets
+    from src.data.unify import to_common_schema
+    from src.evaluation.known_start import run_known_start as evaluate
+
+    trials = [to_common_schema(t) for t in load_all_datasets(skip_missing=True)]
+    if not trials:
+        print("No datasets found. Please download datasets into data/raw/ as described in README.md.")
+        return
+    evaluate(trials)
+
+
 def run_compare():
     print("\n" + "=" * 60)
     print("  Phase 8: Master Comparison Table")
@@ -218,7 +242,8 @@ def main():
     parser = argparse.ArgumentParser(description="EOG Eye Gaze Estimation Pipeline Runner")
     parser.add_argument(
         "--phase",
-        choices=["inspect", "preprocess", "train_classical", "train_deep", "ablations", "calibrate", "compare", "all"],
+        choices=["inspect", "preprocess", "train_classical", "train_deep", "ablations", "calibrate",
+                 "compare", "known_start", "all"],
         default="all",
         help="Pipeline phase to run",
     )
@@ -272,6 +297,8 @@ def main():
         run_calibrate()
     elif args.phase == "compare":
         run_compare()
+    elif args.phase == "known_start":
+        run_known_start()
     elif args.phase == "all":
         run_inspect()
         try:

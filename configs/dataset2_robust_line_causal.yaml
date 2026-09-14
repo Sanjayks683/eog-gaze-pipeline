@@ -1,0 +1,33 @@
+# configs/dataset2_robust_line_causal.yaml
+# ========================================
+# Real-time experiment: a line is fit to the non-blink samples of the PAST
+# 60 s and evaluated at the current time, which removes the half-window lag of a
+# past-only median/mean. Otherwise identical to dataset2_median_baseline_causal.yaml.
+# The 60 s window was chosen over 30/120/240 s on these same cross-validation folds.
+
+data:
+  datasets_to_load:
+    - "dataset2"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "robust_line"
+  baseline_window_sec: 60.0
+  baseline_causal: true
+  baseline_clip_mad: 3.0
+
+model:
+  model_type: "conv_bilstm"
+  loss_type: "range_preserving"
+  lambda_corr: 0.5
+  lambda_var: 0.2
+  huber_delta: 2.0
+  calibration_prompt_sec: 30.0
+  lr: 0.0003
+  max_epochs: 150
+  early_stopping_patience: 15
+
+paths:
+  data_processed: "data/processed_robustline60_causal"
+  results: "reports/experiments/robustline60_causal"
+  reports_figures: "reports/experiments/robustline60_causal/figures"

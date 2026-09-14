@@ -207,7 +207,12 @@ def preprocess_trials(trials: List[Trial]) -> List[Trial]:
         )
         trial.channels.update(filtered)
 
-    trials, _ = zscore_per_subject(trials, channels_to_normalize=signal_channels, inplace=True)
+    trials, stats = zscore_per_subject(trials, channels_to_normalize=signal_channels, inplace=True)
+    for trial in trials:
+        trial.metadata["zscore_std"] = {
+            ch: stats[ch][trial.subject_id][1]
+            for ch in signal_channels if trial.subject_id in stats[ch]
+        }
     return trials
 
 

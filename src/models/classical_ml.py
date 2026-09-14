@@ -33,6 +33,7 @@ except ImportError:
     HAS_XGB = False
 
 from src.config import CFG
+from src.evaluation.metrics import compute_fixation_metrics
 
 
 def build_svc_pipeline(use_grid_search: bool = False) -> Pipeline:
@@ -92,15 +93,18 @@ def build_xgb_regressor(use_grid_search: bool = False):
     return reg
 
 
-def _subsample_train(X_tr: np.ndarray, y_tr: np.ndarray, model_label: str):
+def _subsample_train(X_tr: np.ndarray, y_tr: np.ndarray, model_label: str,
+                     weights: Optional[np.ndarray] = None):
     """
     Subsample the TRAIN set for kernel-SVM models, whose fit cost is O(n²).
     The test set is never subsampled. Controlled by CFG.cv.svm_max_train_samples
     (0 disables). Prints a warning whenever it activates.
+
+    Returns (X, y, weights); weights stays None when none were given.
     """
     cap = getattr(CFG.cv, "svm_max_train_samples", 0)
     if not cap or len(X_tr) <= cap:
-        return X_tr, y_tr
+        return X_tr, y_tr, weights
     print(
         f"  [INFO] {model_label}: subsampling train set {len(X_tr)} -> {cap} "
         f"(kernel-SVM O(n²) fit cost; test set unchanged). "
@@ -108,7 +112,7 @@ def _subsample_train(X_tr: np.ndarray, y_tr: np.ndarray, model_label: str):
     )
     rng = np.random.RandomState(CFG.cv.random_seed)
     sub_idx = rng.choice(len(X_tr), cap, replace=False)
-    return X_tr[sub_idx], y_tr[sub_idx]
+    return X_tr[sub_idx], y_tr[sub_idx], (None if weights is None else weights[sub_idx])
 
 
 def run_classification_cv(
@@ -135,7 +139,7 @@ def run_classification_cv(
 
         if model_name == "svc":
             model = build_svc_pipeline(use_grid_search)
-            X_fit, y_fit = _subsample_train(X_tr, y_tr, "SVC")
+            X_fit, y_fit, _ = _subsample_train(X_tr, y_tr, "SVC")
             max_samples = CFG.cv.grid_search_max_samples
             if use_grid_search and max_samples and len(X_fit) > max_samples:
                 sub_idx = np.random.RandomState(CFG.cv.random_seed).choice(
@@ -185,42 +189,67 @@ def run_regression_cv(
     folds: List[Tuple[np.ndarray, np.ndarray]],
     model_name: str = "svr",
     use_grid_search: bool = None,
+    metadata: Optional[List[dict]] = None,
 ) -> Dict:
     """
     Run cross-validated regression and return results dict.
+
+    With per-window metadata the results also carry the fixation-window MAE
+    (see compute_fixation_metrics). CFG.cv.regression_train_windows picks the
+    training windows: "all", "fixation" (fixation windows only), or "weighted"
+    (all windows, non-fixation ones weighted by CFG.cv.regression_nonfixation_weight).
     """
     from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
     if use_grid_search is None:
         use_grid_search = getattr(CFG.cv, "use_grid_search", False)
+    train_windows = CFG.cv.regression_train_windows
+    if train_windows not in ("all", "fixation", "weighted"):
+        raise ValueError("CFG.cv.regression_train_windows must be 'all', 'fixation' or "
+                         f"'weighted', got {train_windows!r}")
+    if train_windows != "all" and metadata is None:
+        raise ValueError(f"regression_train_windows={train_windows!r} needs per-window metadata")
+    fixation = (np.array([bool(m.get("is_fixation", False)) for m in metadata])
+                if metadata is not None else None)
 
-    results = {"model": model_name, "folds": []}
-    all_preds, all_true = [], []
+    results = {"model": model_name, "train_windows": train_windows, "folds": []}
+    if train_windows == "weighted":
+        results["nonfixation_weight"] = CFG.cv.regression_nonfixation_weight
+    all_preds, all_true, all_meta = [], [], []
 
     for fold_i, (train_idx, test_idx) in enumerate(folds):
+        if train_windows == "fixation":
+            train_idx = train_idx[fixation[train_idx]]
         X_tr, X_te = X[train_idx], X[test_idx]
         y_tr, y_te = y[train_idx], y[test_idx]
+        w_tr = (np.where(fixation[train_idx], 1.0, CFG.cv.regression_nonfixation_weight)
+                if train_windows == "weighted" else None)
 
         valid_tr = ~np.isnan(y_tr).any(axis=1)
         if not valid_tr.all():
             X_tr, y_tr = X_tr[valid_tr], y_tr[valid_tr]
+            w_tr = None if w_tr is None else w_tr[valid_tr]
         valid_te = ~np.isnan(y_te).any(axis=1)
         if not valid_te.all():
             X_te, y_te = X_te[valid_te], y_te[valid_te]
+        if metadata is not None:
+            all_meta.extend(metadata[i] for i in test_idx[valid_te])
 
+        weight_param = "sample_weight"
         if model_name == "svr":
             model = build_svr_pipeline(use_grid_search)
-            X_fit, y_fit = _subsample_train(X_tr, y_tr, "SVR")
+            X_fit, y_fit, w_fit = _subsample_train(X_tr, y_tr, "SVR", w_tr)
+            weight_param = "reg__sample_weight"
         elif model_name == "xgb":
             model = build_xgb_regressor(use_grid_search)
-            X_fit, y_fit = X_tr, y_tr
+            X_fit, y_fit, w_fit = X_tr, y_tr, w_tr
         elif model_name == "mean":
             model = DummyRegressor(strategy="mean")
-            X_fit, y_fit = X_tr, y_tr
+            X_fit, y_fit, w_fit = X_tr, y_tr, w_tr
         else:
             raise ValueError(f"Unknown regressor: {model_name}")
 
-        model.fit(X_fit, y_fit)
+        model.fit(X_fit, y_fit, **({} if w_fit is None else {weight_param: w_fit}))
         y_pred = model.predict(X_te)
 
         rmse_h = float(np.sqrt(mean_squared_error(y_te[:, 0], y_pred[:, 0])))
@@ -248,6 +277,8 @@ def run_regression_cv(
     results["pooled_mae_v_deg"] = float(mean_absolute_error(all_true[:, 1], all_preds[:, 1]))
     results["pooled_r2_h"] = float(r2_score(all_true[:, 0], all_preds[:, 0]))
     results["pooled_r2_v"] = float(r2_score(all_true[:, 1], all_preds[:, 1]))
+    if metadata is not None:
+        results.update(compute_fixation_metrics(all_true, all_preds, all_meta))
     return results
 
 

@@ -65,6 +65,36 @@ def compute_regression_metrics(
     }
 
 
+def compute_fixation_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    metadata: List[dict],
+) -> Dict:
+    """
+    Gaze error scored the way Barbara et al. (BSPC 2023) report it: mean absolute
+    error over fixation windows only (metadata "is_fixation"), computed per subject
+    and then averaged across subjects (± SD across subjects).
+
+    Returns an empty dict when the metadata has no fixation flags or no fixations.
+    """
+    fixation = np.array([bool(m.get("is_fixation", False)) for m in metadata])
+    if len(fixation) != len(y_true) or not fixation.any():
+        return {}
+    subjects = np.array([m["subject_id"] for m in metadata])
+    abs_err = np.abs(np.asarray(y_pred, dtype=float) - np.asarray(y_true, dtype=float))
+    per_subject = np.array([
+        abs_err[fixation & (subjects == s)].mean(axis=0)
+        for s in np.unique(subjects[fixation])
+    ])
+    return {
+        "fixation_mae_h_deg": float(per_subject[:, 0].mean()),
+        "fixation_mae_v_deg": float(per_subject[:, 1].mean()),
+        "fixation_mae_h_sd_deg": float(per_subject[:, 0].std()),
+        "fixation_mae_v_sd_deg": float(per_subject[:, 1].std()),
+        "n_fixation_windows": int(fixation.sum()),
+    }
+
+
 def print_summary_table(results_dir: str = None) -> None:
     """Print a formatted summary of all saved result files."""
     if results_dir is None:

@@ -39,6 +39,29 @@ def _window_channel_arrays(trial: Trial) -> Tuple[List[str], List[np.ndarray]]:
     return names, arrays
 
 
+def _fixation_flags(trial: Trial, starts: np.ndarray, win: int) -> np.ndarray:
+    """
+    Flag windows that fall on a settled fixation, the only samples Barbara et al.
+    (BSPC 2023) score gaze error on: inside a ControlSignal 1/2 interval, starting
+    at least CFG.segmentation.fixation_settle_ms after the last target change, and
+    with no target change inside the window. All False without targets/ControlSignal.
+    """
+    starts = np.asarray(starts, dtype=np.int64)
+    if trial.target_angle is None or "ControlSignal" not in trial.channels or len(starts) == 0:
+        return np.zeros(len(starts), dtype=bool)
+    target = np.asarray(trial.target_angle)
+    if target.ndim == 1:
+        target = target[:, np.newaxis]
+    cs = trial.channels["ControlSignal"]
+    n = min(len(target), len(cs))
+    change = np.r_[False, np.any(np.diff(target[:n], axis=0) != 0, axis=1)]
+    last_change = np.maximum.accumulate(np.where(change, np.arange(n), 0))
+    ends = np.minimum(starts + win - 1, n - 1)
+    settle = int(round(CFG.segmentation.fixation_settle_ms * trial.fs / 1000.0))
+    in_interval = np.isin(cs[starts], (1, 2)) & np.isin(cs[ends], (1, 2))
+    return in_interval & (last_change[ends] <= starts) & (starts - last_change[starts] >= settle)
+
+
 def _make_event_mask(trial: Trial) -> np.ndarray:
     """
     Build a per-sample class label array for one trial.
@@ -119,8 +142,10 @@ def make_classification_windows(
             continue
 
         label_mask = _make_event_mask(trial)
+        starts = np.arange(0, n - win + 1, stride)
+        fixation = _fixation_flags(trial, starts, win)
 
-        for start in range(0, n - win + 1, stride):
+        for start, is_fixation in zip(starts.tolist(), fixation.tolist()):
             end = start + win
             window_labels = label_mask[start:end]
 
@@ -142,6 +167,7 @@ def make_classification_windows(
                 "window_start": start,
                 "fs": trial.fs,
                 "channel_names": ch_names,
+                "is_fixation": is_fixation,
             })
 
     n_ch = len(X_list[0]) if X_list else 2
@@ -209,7 +235,10 @@ def make_regression_targets(
             target_deg = float(np.mean(target_ga)) if target_ga is not None and len(target_ga) > 0 else None
             angle_arr = _build_step_angle(n, trial.event_timestamps, target_angle_deg=target_deg)
 
-        for start in range(0, n - win + 1, stride):
+        starts = np.arange(0, n - win + 1, stride)
+        fixation = _fixation_flags(trial, starts, win)
+
+        for start, is_fixation in zip(starts.tolist(), fixation.tolist()):
             end = start + win
             window_angle = angle_arr[start:end]
             mean_angle = np.mean(window_angle, axis=0)
@@ -223,6 +252,7 @@ def make_regression_targets(
                 "window_start": start,
                 "fs": trial.fs,
                 "channel_names": ch_names,
+                "is_fixation": is_fixation,
             })
 
     n_ch = len(X_list[0]) if X_list else 2

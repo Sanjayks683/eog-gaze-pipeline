@@ -1,0 +1,17 @@
+# configs/dataset2_known_start.yaml
+# =================================
+# Separate evaluation replicating the known-start protocol of Barbara et al.
+# (BSPC 86, 2023; Sec. 4.5.3, App. E): EOG-derived fixation/saccade/blink labels,
+# mistake-free short windows (66 saccade + 33 blink per third), long segments of
+# 8 trials, per-sample fixation MAE. Every segment starts from the true gaze, so
+# these numbers are not comparable with the main pipeline results, which estimate
+# absolute gaze with no known start. See src/evaluation/known_start.py.
+#
+#   python main.py --config configs/dataset2_known_start.yaml --phase known_start
+
+data:
+  datasets_to_load:
+    - "dataset2"
+
+paths:
+  results: "reports/experiments/known_start"

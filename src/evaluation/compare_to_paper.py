@@ -33,14 +33,38 @@ PAPER_RESULTS = {
         "mae_v_deg": None,
         "notes": "Fill from Table in: Barbara et al., BSPC vol.57, Mar.2020",
     },
-    "Barbara_2023_BSPC": {
-        "description": "Real-time continuous EOG gaze estimation, stationary head",
+    # Barbara et al., BSPC vol.86 (2023) 105282, Tables 2-3. The paper reports MAE
+    # over fixation samples only (Appendix E.2), mean ± SD across subjects, with
+    # every model parameter fitted on the SAME subject (3 contiguous subsets:
+    # fit / tune / test, all 6 role permutations) and outlier segments excluded
+    # (6.85% short, 5.83% long). There is no RMSE in the paper.
+    "Barbara_2023_DKF_short": {
+        "description": "Multiple-model dual Kalman filter, 1 s saccade / 2 s blink segments",
         "dataset": "Dataset 2",
-        "rmse_h_deg": 2.23,
-        "rmse_v_deg": 2.39,
-        "mae_h_deg": None,
-        "mae_v_deg": None,
-        "notes": "Barbara et al., BSPC vol.86, Sep.2023 (battery model under stationary head)",
+        "rmse_h_deg": None, "rmse_v_deg": None, "mae_h_deg": None, "mae_v_deg": None,
+        "fixation_mae_h_deg": 1.64, "fixation_mae_v_deg": 1.97,
+        "notes": "BSPC 86 (2023) Table 2: ±0.82 / ±0.34; within-subject; mistake-free segments; 6.85% outliers excluded",
+    },
+    "Barbara_2023_DKF_long": {
+        "description": "Multiple-model dual Kalman filter, 32 s segments (8 trials)",
+        "dataset": "Dataset 2",
+        "rmse_h_deg": None, "rmse_v_deg": None, "mae_h_deg": None, "mae_v_deg": None,
+        "fixation_mae_h_deg": 5.23, "fixation_mae_v_deg": 6.59,
+        "notes": "BSPC 86 (2023) Table 3: ±2.00 / ±3.10; within-subject; 5.83% outlier segments excluded",
+    },
+    "Barbara_2019_differencing_short": {
+        "description": "Signal differencing + 2-channel linear regression [BSPC 47, 2019], as run in BSPC 86",
+        "dataset": "Dataset 2",
+        "rmse_h_deg": None, "rmse_v_deg": None, "mae_h_deg": None, "mae_v_deg": None,
+        "fixation_mae_h_deg": 1.51, "fixation_mae_v_deg": 1.95,
+        "notes": "BSPC 86 (2023) Table 2 state of the art: ±0.55 / ±0.29; same protocol as DKF short",
+    },
+    "Barbara_2019_differencing_long": {
+        "description": "Signal differencing + 2-channel linear regression [BSPC 47, 2019], as run in BSPC 86",
+        "dataset": "Dataset 2",
+        "rmse_h_deg": None, "rmse_v_deg": None, "mae_h_deg": None, "mae_v_deg": None,
+        "fixation_mae_h_deg": 5.82, "fixation_mae_v_deg": 8.04,
+        "notes": "BSPC 86 (2023) Table 3 state of the art: ±2.70 / ±2.96; same protocol as DKF long",
     },
     "Barbara_2024_BSPC": {
         "description": "Real-time EOG gaze estimation, non-stationary head",
@@ -95,13 +119,30 @@ def _detect_dataset_label() -> str:
     return "Pooled"
 
 
+_ERROR_KEYS = ("rmse_h_deg", "rmse_v_deg", "mae_h_deg", "mae_v_deg",
+               "fixation_mae_h_deg", "fixation_mae_v_deg")
+
+
+def _error_columns(d: Optional[Dict]) -> Dict:
+    """Error columns of a result JSON (all-window pooled RMSE/MAE, fixation MAE)."""
+    d = d or {}
+    return {
+        "rmse_h_deg": d.get("pooled_rmse_h_deg"), "rmse_v_deg": d.get("pooled_rmse_v_deg"),
+        "mae_h_deg": d.get("pooled_mae_h_deg"), "mae_v_deg": d.get("pooled_mae_v_deg"),
+        "fixation_mae_h_deg": d.get("fixation_mae_h_deg"),
+        "fixation_mae_v_deg": d.get("fixation_mae_v_deg"),
+    }
+
+
 def build_master_table(results_dir: str = None) -> List[Dict]:
     """
     Build the master comparison table.
 
     Returns list of row dicts with keys:
       method, dataset, rmse_h_deg, rmse_v_deg, mae_h_deg, mae_v_deg,
-      f1_weighted, notes
+      fixation_mae_h_deg, fixation_mae_v_deg, f1_weighted, notes
+    RMSE/MAE are pooled over all test windows; fixation MAE is the per-subject
+    mean over fixation windows, the metric published results use.
     """
     if results_dir is None:
         results_dir = CFG.paths.results
@@ -114,8 +155,7 @@ def build_master_table(results_dir: str = None) -> List[Dict]:
         rows.append({
             "method": "Baseline: majority class",
             "dataset": dataset_label,
-            "rmse_h_deg": None, "rmse_v_deg": None,
-            "mae_h_deg": None, "mae_v_deg": None,
+            **_error_columns(None),
             "f1_weighted": d.get("pooled_f1_weighted"),
             "notes": "Always predicts the train fold's most frequent class",
         })
@@ -124,10 +164,7 @@ def build_master_table(results_dir: str = None) -> List[Dict]:
         rows.append({
             "method": "Baseline: train-fold mean angle",
             "dataset": dataset_label,
-            "rmse_h_deg": d.get("pooled_rmse_h_deg"),
-            "rmse_v_deg": d.get("pooled_rmse_v_deg"),
-            "mae_h_deg": d.get("pooled_mae_h_deg"),
-            "mae_v_deg": d.get("pooled_mae_v_deg"),
+            **_error_columns(d),
             "f1_weighted": None,
             "notes": "Always predicts the train fold's mean H/V angle",
         })
@@ -138,8 +175,7 @@ def build_master_table(results_dir: str = None) -> List[Dict]:
             rows.append({
                 "method": f"Classical ML ({clf_name.upper()}) — classification",
                 "dataset": dataset_label,
-                "rmse_h_deg": None, "rmse_v_deg": None,
-                "mae_h_deg": None, "mae_v_deg": None,
+                **_error_columns(None),
                 "f1_weighted": d.get("pooled_f1_weighted"),
                 "notes": "",
             })
@@ -147,15 +183,13 @@ def build_master_table(results_dir: str = None) -> List[Dict]:
     for reg_name in ["svr", "xgb"]:
         d = load_result_safe(f"classical_reg_{reg_name}", results_dir)
         if d:
+            train_windows = d.get("train_windows", "all")
             rows.append({
                 "method": f"Classical ML ({reg_name.upper()}) — regression",
                 "dataset": dataset_label,
-                "rmse_h_deg": d.get("pooled_rmse_h_deg"),
-                "rmse_v_deg": d.get("pooled_rmse_v_deg"),
-                "mae_h_deg": d.get("pooled_mae_h_deg"),
-                "mae_v_deg": d.get("pooled_mae_v_deg"),
+                **_error_columns(d),
                 "f1_weighted": None,
-                "notes": "",
+                "notes": "" if train_windows == "all" else f"trained on {train_windows} windows only",
             })
 
     for model_type in ["conv1d", "lstm", "conv_bilstm"]:
@@ -165,10 +199,7 @@ def build_master_table(results_dir: str = None) -> List[Dict]:
             rows.append({
                 "method": f"Deep multi-task ({model_type} / {arch})",
                 "dataset": dataset_label,
-                "rmse_h_deg": deep.get("pooled_rmse_h_deg"),
-                "rmse_v_deg": deep.get("pooled_rmse_v_deg"),
-                "mae_h_deg": deep.get("pooled_mae_h_deg"),
-                "mae_v_deg": deep.get("pooled_mae_v_deg"),
+                **_error_columns(deep),
                 "f1_weighted": deep.get("pooled_f1_weighted"),
                 "notes": "Multi-task: classification + regression jointly",
             })
@@ -176,8 +207,7 @@ def build_master_table(results_dir: str = None) -> List[Dict]:
         rows.append({
             "method": "Deep multi-task",
             "dataset": "—",
-            "rmse_h_deg": None, "rmse_v_deg": None,
-            "mae_h_deg": None, "mae_v_deg": None,
+            **_error_columns(None),
             "f1_weighted": None,
             "notes": "Run Phase 7 to generate deep_model_<type>.json",
         })
@@ -185,15 +215,12 @@ def build_master_table(results_dir: str = None) -> List[Dict]:
     for paper_key, paper_data in PAPER_RESULTS.items():
         if dataset_label == "Dataset 2 only" and "Dataset 2" not in paper_data["dataset"]:
             continue
-        if dataset_label == "Dataset 2 only" and paper_data["rmse_h_deg"] is None:
+        if dataset_label == "Dataset 2 only" and all(paper_data.get(k) is None for k in _ERROR_KEYS):
             continue
         rows.append({
             "method": f"Published: {paper_key}",
             "dataset": paper_data["dataset"],
-            "rmse_h_deg": paper_data["rmse_h_deg"],
-            "rmse_v_deg": paper_data["rmse_v_deg"],
-            "mae_h_deg": paper_data["mae_h_deg"],
-            "mae_v_deg": paper_data["mae_v_deg"],
+            **{k: paper_data.get(k) for k in _ERROR_KEYS},
             "f1_weighted": None,
             "notes": paper_data["notes"],
         })
@@ -203,19 +230,21 @@ def build_master_table(results_dir: str = None) -> List[Dict]:
 
 def print_master_table(rows: List[Dict]) -> None:
     """Pretty-print the master results table."""
-    print("\n" + "=" * 110)
-    print(f"{'Method':<40} {'Dataset':<20} {'RMSE H°':>8} {'RMSE V°':>8} {'MAE H°':>8} {'F1 W':>8}")
-    print("=" * 110)
+    print("\n" + "=" * 128)
+    print(f"{'Method':<40} {'Dataset':<20} {'RMSE H°':>8} {'RMSE V°':>8} {'MAE H°':>8} "
+          f"{'FixMAE H°':>9} {'FixMAE V°':>9} {'F1 W':>8}")
+    print("=" * 128)
     for row in rows:
         def fmt(v): return f"{v:.3f}" if v is not None else "  N/A "
         print(
             f"{row['method']:<40} {row['dataset']:<20} "
             f"{fmt(row['rmse_h_deg']):>8} {fmt(row['rmse_v_deg']):>8} "
-            f"{fmt(row['mae_h_deg']):>8} {fmt(row['f1_weighted']):>8}"
+            f"{fmt(row['mae_h_deg']):>8} {fmt(row['fixation_mae_h_deg']):>9} "
+            f"{fmt(row['fixation_mae_v_deg']):>9} {fmt(row['f1_weighted']):>8}"
         )
         if row.get("notes"):
             print(f"  -> {row['notes']}")
-    print("=" * 110)
+    print("=" * 128)
 
 
 def save_master_table_csv(rows: List[Dict], results_dir: str = None) -> str:
@@ -224,8 +253,7 @@ def save_master_table_csv(rows: List[Dict], results_dir: str = None) -> str:
         results_dir = CFG.paths.results
     os.makedirs(results_dir, exist_ok=True)
     path = os.path.join(results_dir, "master_results_table.csv")
-    fieldnames = ["method", "dataset", "rmse_h_deg", "rmse_v_deg",
-                  "mae_h_deg", "mae_v_deg", "f1_weighted", "notes"]
+    fieldnames = ["method", "dataset", *_ERROR_KEYS, "f1_weighted", "notes"]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()

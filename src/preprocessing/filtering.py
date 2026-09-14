@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import numpy as np
 from scipy import signal as sp_signal
+from numpy.lib.stride_tricks import sliding_window_view
 from scipy.ndimage import median_filter
 from typing import Literal
 
@@ -22,16 +23,22 @@ from src.config import CFG
 def remove_baseline_drift(
     sig: np.ndarray,
     fs: float,
-    method: Literal["highpass", "polynomial_detrend", "moving_median"] = None,
+    method: Literal["highpass", "polynomial_detrend", "moving_median",
+                    "robust_mean", "robust_line"] = None,
+    window_sec: float = None,
+    causal: bool = None,
 ) -> np.ndarray:
     """
     Remove low-frequency baseline drift from an EOG signal.
 
     Parameters
     ----------
-    sig    : 1-D numpy array (n_samples,)
-    fs     : sampling rate in Hz
-    method : "highpass", "polynomial_detrend" or "moving_median" (default from CFG)
+    sig        : 1-D numpy array (n_samples,)
+    fs         : sampling rate in Hz
+    method     : "highpass", "polynomial_detrend", "moving_median", "robust_mean"
+                 or "robust_line" (default from CFG)
+    window_sec : baseline window for the moving-window methods (default from CFG)
+    causal     : past-only baseline window for those methods (default from CFG)
 
     Returns
     -------
@@ -51,11 +58,13 @@ def remove_baseline_drift(
     elif method == "polynomial_detrend":
         return _polynomial_detrend(sig, fs)
     elif method == "moving_median":
-        return _moving_median_detrend(sig, fs)
+        return _moving_median_detrend(sig, fs, window_sec, causal)
+    elif method in ("robust_mean", "robust_line"):
+        return _robust_baseline_detrend(sig, fs, method == "robust_line", window_sec, causal)
     else:
         raise ValueError(
-            f"Unknown drift removal method: {method!r}. "
-            "Use 'highpass', 'polynomial_detrend' or 'moving_median'."
+            f"Unknown drift removal method: {method!r}. Use 'highpass', "
+            "'polynomial_detrend', 'moving_median', 'robust_mean' or 'robust_line'."
         )
 
 
@@ -182,7 +191,8 @@ def _polynomial_detrend(sig: np.ndarray, fs: float) -> np.ndarray:
     return sig - trend
 
 
-def _moving_median_detrend(sig: np.ndarray, fs: float) -> np.ndarray:
+def _moving_median_detrend(sig: np.ndarray, fs: float, window_sec: float = None,
+                           causal: bool = None) -> np.ndarray:
     """
     Subtract a slow moving-median baseline (CFG.preprocessing.median_baseline_sec).
 
@@ -192,10 +202,14 @@ def _moving_median_detrend(sig: np.ndarray, fs: float) -> np.ndarray:
     on the signal decimated to ~8 Hz for speed. With median_baseline_causal=True
     each sample's baseline uses only past samples (real-time compatible).
     """
+    if window_sec is None:
+        window_sec = CFG.preprocessing.median_baseline_sec
+    if causal is None:
+        causal = CFG.preprocessing.median_baseline_causal
     step = max(1, int(fs // 8))
     decimated = sig[::step]
-    w = max(1, int(round(CFG.preprocessing.median_baseline_sec * fs / step)))
-    if CFG.preprocessing.median_baseline_causal:
+    w = max(1, int(round(window_sec * fs / step)))
+    if causal:
         import pandas as pd
         base = pd.Series(decimated).rolling(w, min_periods=1).median().to_numpy()
         baseline = np.repeat(base, step)[: len(sig)]
@@ -203,6 +217,63 @@ def _moving_median_detrend(sig: np.ndarray, fs: float) -> np.ndarray:
         base = median_filter(decimated, size=w, mode="nearest")
         baseline = np.interp(np.arange(len(sig)), np.arange(len(decimated)) * step, base)
     return sig - baseline
+
+
+def _robust_baseline_detrend(sig: np.ndarray, fs: float, fit_line: bool,
+                             window_sec: float = None, causal: bool = None) -> np.ndarray:
+    """
+    Subtract a moving robust-mean (or robust-line) baseline.
+
+    Gaze targets are spread roughly uniformly over the screen, and for such a
+    spread the moving median wanders ~sqrt(3)x more than the moving mean. Samples
+    further than baseline_clip_mad robust SDs from the window median are dropped
+    before averaging, so blinks don't pull the mean (clipping them instead would
+    still let each blink add a full baseline_clip_mad SDs). With fit_line=True a
+    line is fit to the kept samples and evaluated at the samples being corrected;
+    for a past-only (causal) window this removes the half-window lag of the mean.
+
+    The signal is block-averaged to ~8 Hz first. In causal mode the baseline for
+    each block uses only earlier blocks, so no sample ever sees the future.
+    """
+    cfg = CFG.preprocessing
+    if window_sec is None:
+        window_sec = cfg.baseline_window_sec
+    if causal is None:
+        causal = cfg.baseline_causal
+    step = max(1, int(fs // 8))
+    n_blocks = len(sig) // step
+    if n_blocks < 2:
+        return sig - np.mean(sig)
+    blocks = sig[: n_blocks * step].reshape(n_blocks, step).mean(axis=1)
+    w = max(2, int(round(window_sec * fs / step)))
+
+    if causal:
+        padded = np.r_[np.full(w - 1, blocks[0]), blocks]
+    else:
+        half = w // 2
+        padded = np.r_[np.full(half, blocks[0]), blocks, np.full(w - 1 - half, blocks[-1])]
+    windows = sliding_window_view(padded, w)
+    med = np.median(windows, axis=1, keepdims=True)
+    dev = np.abs(windows - med)
+    robust_sd = 1.4826 * np.median(dev, axis=1, keepdims=True) + 1e-12
+    # Floored at 0.68 robust SDs (= 1 MAD) so at least half of every window is kept.
+    keep = dev <= max(cfg.baseline_clip_mad, 0.68) * robust_sd
+    n_keep = keep.sum(axis=1)
+    base = (windows * keep).sum(axis=1) / n_keep
+
+    if causal:
+        if fit_line:
+            t = np.arange(w) - (w - 1) / 2
+            t_mean = (keep * t).sum(axis=1) / n_keep
+            dt = t - t_mean[:, None]
+            slope = ((keep * dt * (windows - base[:, None])).sum(axis=1)
+                     / ((keep * dt ** 2).sum(axis=1) + 1e-12))
+            base = base + slope * ((w - 1) / 2 + 1 - t_mean)  # evaluated at the next block
+        # block j's baseline corrects block j+1; the first block uses sig[0]
+        return sig - np.repeat(np.r_[sig[0], base], step)[: len(sig)]
+
+    centres = np.arange(n_blocks) * step + (step - 1) / 2
+    return sig - np.interp(np.arange(len(sig)), centres, base)
 
 
 def filter_trial_channels(

@@ -1,0 +1,31 @@
+# configs/dataset2_context_causal_fixation.yaml
+# =============================================
+# dataset2_context_causal.yaml, but the classical regressors are fit only on
+# settled-fixation training windows (cv.regression_train_windows), the samples
+# Barbara et al. (BSPC 2023) score. Test windows are never filtered; fixation MAE
+# improves while all-window RMSE gets worse. Reuses the context_causal processed
+# data: run only train_classical and compare.
+
+data:
+  datasets_to_load:
+    - "dataset2"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "robust_line"
+  baseline_window_sec: 60.0
+  baseline_causal: true
+  baseline_clip_mad: 3.0
+  context_baselines:
+    - ["robust_mean", 30.0]
+    - ["robust_mean", 120.0]
+    - ["robust_line", 120.0]
+  context_lags_sec: [1.0, 2.0, 4.0, 8.0]
+
+cv:
+  regression_train_windows: "fixation"
+
+paths:
+  data_processed: "data/processed_context_causal"
+  results: "reports/experiments/context_causal_fixation"
+  reports_figures: "reports/experiments/context_causal_fixation/figures"

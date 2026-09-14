@@ -1,0 +1,12 @@
+method,dataset,rmse_h_deg,rmse_v_deg,mae_h_deg,mae_v_deg,fixation_mae_h_deg,fixation_mae_v_deg,f1_weighted,notes
+Baseline: majority class,Dataset 2 only,,,,,,,0.33355674110035816,Always predicts the train fold's most frequent class
+Baseline: train-fold mean angle,Dataset 2 only,14.072630357218172,7.996417674038531,12.103734016418457,6.85066032409668,12.55689750381023,7.05228656619298,,Always predicts the train fold's mean H/V angle
+Classical ML (SVC) — classification,Dataset 2 only,,,,,,,0.5143230140800951,
+Classical ML (RF) — classification,Dataset 2 only,,,,,,,0.525311046208027,
+Classical ML (SVR) — regression,Dataset 2 only,5.74288793315689,4.916573617349386,4.230608446962385,3.8315033275736092,3.7277649069979524,3.507208199468778,,
+Classical ML (XGB) — regression,Dataset 2 only,5.607915406812137,4.762877025348623,4.12254524230957,3.7079415321350098,3.7618854517442473,3.477813493060289,,
+Deep multi-task (conv_bilstm / EOGConvLSTMNet),Dataset 2 only,5.57905976827182,4.848804617581783,4.127338409423828,3.7818028926849365,3.7396531723922815,3.5801989738098023,0.41633340780080313,Multi-task: classification + regression jointly
+Published: Barbara_2023_DKF_short,Dataset 2,,,,,1.64,1.97,,BSPC 86 (2023) Table 2: ±0.82 / ±0.34; within-subject; mistake-free segments; 6.85% outliers excluded
+Published: Barbara_2023_DKF_long,Dataset 2,,,,,5.23,6.59,,BSPC 86 (2023) Table 3: ±2.00 / ±3.10; within-subject; 5.83% outlier segments excluded
+Published: Barbara_2019_differencing_short,Dataset 2,,,,,1.51,1.95,,BSPC 86 (2023) Table 2 state of the art: ±0.55 / ±0.29; same protocol as DKF short
+Published: Barbara_2019_differencing_long,Dataset 2,,,,,5.82,8.04,,BSPC 86 (2023) Table 3 state of the art: ±2.70 / ±2.96; same protocol as DKF long

@@ -1,0 +1,34 @@
+# configs/dataset2_range_centred_fixation.yaml
+# ============================================
+# Offline experiment: dataset2_context_centred_fixation.yaml
+# plus rolling-range features: for centred 60/120/240 s and the 10-90% and 5-95%
+# quantile pairs, the window level minus the mid-range, the range, and their
+# ratio (src/features/context.py). Cue positions are spread roughly uniformly over
+# a bounded screen, so the mid-range locates the centre more precisely than a mean,
+# and the range is a label-free per-subject gain estimate.
+# Uses future samples. Run preprocess / train_classical / compare.
+
+data:
+  datasets_to_load:
+    - "dataset2"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "robust_mean"
+  baseline_window_sec: 60.0
+  baseline_causal: false
+  baseline_clip_mad: 3.0
+  context_baselines:
+    - ["robust_mean", 30.0]
+    - ["robust_mean", 120.0]
+  context_lags_sec: [1.0, 2.0, 4.0, 8.0]
+  context_range_windows_sec: [60.0, 120.0, 240.0]
+  context_range_quantiles: [[0.10, 0.90], [0.05, 0.95]]
+
+cv:
+  regression_train_windows: "fixation"
+
+paths:
+  data_processed: "data/processed_range_centred"
+  results: "reports/experiments/range_centred_fixation"
+  reports_figures: "reports/experiments/range_centred_fixation/figures"

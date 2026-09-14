@@ -1,0 +1,34 @@
+# configs/dataset2_robust_mean.yaml
+# =================================
+# Experiment: identical to dataset2_median_baseline.yaml except for the baseline
+# statistic. A centred 60 s moving MEAN, ignoring blink samples (beyond
+# median +- 3 robust SDs), replaces the 30 s moving median, which wanders more
+# because gaze targets are spread roughly uniformly over the screen. Offline only.
+# The 60 s window was chosen over 30/120 s on these same cross-validation folds.
+
+data:
+  datasets_to_load:
+    - "dataset2"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "robust_mean"
+  baseline_window_sec: 60.0
+  baseline_causal: false
+  baseline_clip_mad: 3.0
+
+model:
+  model_type: "conv_bilstm"
+  loss_type: "range_preserving"
+  lambda_corr: 0.5
+  lambda_var: 0.2
+  huber_delta: 2.0
+  calibration_prompt_sec: 30.0
+  lr: 0.0003
+  max_epochs: 150
+  early_stopping_patience: 15
+
+paths:
+  data_processed: "data/processed_robustmean60"
+  results: "reports/experiments/robustmean60"
+  reports_figures: "reports/experiments/robustmean60/figures"

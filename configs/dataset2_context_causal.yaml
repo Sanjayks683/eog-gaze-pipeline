@@ -1,0 +1,31 @@
+# configs/dataset2_context_causal.yaml
+# ====================================
+# Real-time experiment: dataset2_robust_line_causal.yaml plus causal context
+# features for the classical regressors (src/features/context.py). Without
+# context, predictions are pulled toward the screen centre and depend on the last
+# saccade, because a past-only baseline partly absorbs recent fixations. Context:
+#   - how three other past-only baselines differ from the main one, and
+#   - the signal level 1, 2, 4 and 8 s before each window.
+# The deep model sees the same windows as dataset2_robust_line_causal.yaml, so
+# only preprocess / train_classical / compare are run for this config.
+
+data:
+  datasets_to_load:
+    - "dataset2"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "robust_line"
+  baseline_window_sec: 60.0
+  baseline_causal: true
+  baseline_clip_mad: 3.0
+  context_baselines:
+    - ["robust_mean", 30.0]
+    - ["robust_mean", 120.0]
+    - ["robust_line", 120.0]
+  context_lags_sec: [1.0, 2.0, 4.0, 8.0]
+
+paths:
+  data_processed: "data/processed_context_causal"
+  results: "reports/experiments/context_causal"
+  reports_figures: "reports/experiments/context_causal/figures"
