@@ -303,7 +303,9 @@ range features.
 - **Real-time, without ever seeing the test subject**, XGBoost with context and range features is
   0.9° better than the paper's dual Kalman filter horizontally (4.36 vs 5.23°) and 2.8° better
   vertically (3.78 vs 6.59°) on its long-segment results, and better than the earlier
-  signal-differencing method on both axes; so are the all-window and weighted variants. The models
+  signal-differencing method on both axes. So are the all-window and weighted variants, and so is
+  the [nested cross-validation](#nested-cross-validation-dataset-2) result, which picks the
+  settings without looking at the test subjects (4.49 / 3.81°). The models
   estimate absolute gaze from each window, so nothing accumulates over a segment; the features do
   use up to 4 min of past signal.
 - **Weighted training is the best all-round model:** within 0.15° of the fixation-only model on
@@ -320,8 +322,10 @@ range features.
   [known-start evaluation](#separate-evaluation-the-papers-known-start-task) replicates that
   protocol and gets comparable, not clearly better, errors.
 - **Caveats:** baseline windows, context and range settings and the training-window choice were
-  selected by comparing variants on these same 5 folds (no untouched test set), so the numbers are
-  slightly optimistic. The per-subject z-score scale comes from the first 10% of each recording
+  selected by comparing variants on these same 5 folds (no untouched test set). Nested
+  cross-validation re-selects the baseline window, feature set and training windows without the
+  test subjects and scores 0.0–0.16° worse than the best numbers here; the context and range
+  settings themselves were not re-selected. The per-subject z-score scale comes from the first 10% of each recording
   (~80 s, usable in real time after that) and the 30 Hz low-pass is zero-phase (a few ms of
   look-ahead).
 - Exploratory scripts outside the pipeline also tried, without beating XGBoost with context and
@@ -517,6 +521,42 @@ and one contiguous block, which is just as short but has no joins.
   Without range features the difference is inconsistent.
 - These recordings are shortened, so the absolute numbers are not comparable to the main tables.
   Results: `reports/experiments/range_stress_test/dataset2/range_stress_test.json`.
+
+#### Nested cross-validation (Dataset 2)
+
+The experiments above chose the baseline window, feature set and training windows by comparing
+results on the same 5 test folds they report. `scripts/nested_cv.py` makes that choice without the
+test subjects. Inside each outer fold, a 4-fold cross-subject split of the 8 training subjects
+scores all 27 combinations:
+- baseline window: 30, 60 or 120 s
+- features: engineered, + context, or + context + range
+- training windows: all, weighted or fixation
+
+The combination with the best inner fixation MAE (or inner RMSE) is refit on the 8 subjects and
+scored once on the 2 held-out subjects. XGBoost runs on the GPU, so numbers differ slightly from
+the CPU tables above. The context and range settings themselves (baselines, lags, range windows,
+quantiles) keep their configured values and were not part of the selection.
+
+| Dataset 2, XGBoost | Real-time fixation MAE H / V | Real-time RMSE H / V | Offline fixation MAE H / V | Offline RMSE H / V |
+| :--- | :---: | :---: | :---: | :---: |
+| Nested, selected by fixation MAE | 4.49 ± 1.12 / 3.81 ± 1.03 | 7.49 / 5.75 | 3.13 ± 0.60 / 3.39 ± 0.75 | 6.72 / 5.37 |
+| Nested, selected by RMSE | 4.48 ± 1.11 / 3.83 ± 0.89 | 6.42 / 5.19 | 3.34 ± 0.77 / 3.37 ± 0.78 | 5.31 / 4.72 |
+| Best combination picked on the test folds (fixation MAE) | 4.43 / 3.72 | 7.46 / 5.66 | 3.11 / 3.25 | 6.80 / 5.19 |
+| 60 s baseline, engineered features, all windows | 5.65 / 4.57 | 7.67 / 6.06 | 3.76 / 3.50 | 5.60 / 4.77 |
+
+- **The earlier choice holds up.** Selecting by fixation MAE, every outer fold on both tracks picks
+  context + range features with fixation-only training. The real-time track picks a 30 s baseline
+  in 4 folds and 60 s in 1; the offline track picks 60 s in 3 and 120 s in 2. Selecting by RMSE
+  picks range features in 9 of the 10 folds, with weighted training in 8.
+- **Choosing on the test folds was only slightly optimistic.** Nested fixation MAE is 0.06 / 0.09°
+  (real-time) and 0.02 / 0.14° (offline) worse than the best combination picked on the test folds,
+  and 0.0–0.16° worse than the best CPU results in the comparison table. Real-time, it stays below
+  the paper's long-segment Kalman filter results (4.49 / 3.81° vs 5.23 / 6.59°).
+- **Selecting by RMSE** gives nearly the same fixation MAE with a much lower all-window RMSE
+  (real-time 6.42 / 5.19° vs 7.49 / 5.75°), the same trade-off as weighted training.
+- Results: `reports/experiments/nested_cv/dataset2/{realtime,offline}/` (`nested_cv_results.json`
+  with each fold's inner scores and choice, and `fixed_candidates.csv` with every combination scored
+  on the test folds).
 
 ---
 
