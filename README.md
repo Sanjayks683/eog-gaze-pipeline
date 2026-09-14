@@ -531,7 +531,7 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 | Known start, same subject, long 32 s (detected saccades) | 2.26 / 9.69 | — | 8.04 / 13.02 | — |
 | … outlier segments dropped | 2.02 / 9.69 | — | 7.67 / 12.67 | — |
 | … + head rotation, outlier segments dropped | — | — | 5.33 ± 2.00 / 12.42 ± 14.96 | — |
-| … fused with cross-subject XGBoost, outlier segments dropped | — | — | **4.01 ± 0.63 / 4.01 ± 1.20** | — |
+| … fused with cross-subject XGBoost, outlier segments dropped | **0.85 ± 0.31 / 1.35 ± 0.45** | — | **4.01 ± 0.63 / 4.01 ± 1.20** | — |
 | *Published: dual Kalman filter + VOR model, long* | — | — | 4.64 ± 1.37 / 6.10 ± 2.58 | — |
 | *Published: signal differencing, long* | — | — | 8.13 ± 1.15 / 11.25 ± 5.03 | — |
 
@@ -579,7 +579,9 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
     head term included would bias it.
 - **Known start, long segments, vertical:** blinks the detector misses leave a lasting vertical
   offset that keeps adding up (1.9% of labelled blinks counted as eye
-  movements on Dataset 4, 5.1% on Dataset 3).
+  movements on Dataset 4, 5.1% on Dataset 3). Fusing with cross-subject XGBoost removes it: on
+  Dataset 4, long segments go from 2.02 / 9.69° to 0.85 / 1.35°. The fit picks a 1 s time constant
+  in most folds, so there the fused estimate mostly follows XGBoost (fixation MAE 1.33 / 1.56°).
 - **Direction invariance (Phase 10, Dataset 4 deep model):**
   `python main.py --config configs/dataset4_robust_line_causal.yaml --phase ablations` sorts the
   test windows by target direction. Targets within 3° of the centre (71% of windows) have no
