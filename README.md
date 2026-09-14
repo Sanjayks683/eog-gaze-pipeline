@@ -737,6 +737,27 @@ The same search on Dataset 3, whose dataset and context settings come from
   4.28 / 4.36°), real-time nested selection is about equal horizontally and 0.16° better vertically.
 - Results: `reports/experiments/nested_cv/dataset3/{realtime,offline}/`.
 
+#### Nested cross-validation (Dataset 4)
+
+The same search on Dataset 4 (14 subjects, 18 channels, settings from
+`dataset4_range_causal_weighted.yaml`).
+
+| Dataset 4, XGBoost | Real-time fixation MAE H / V | Real-time RMSE H / V | Offline fixation MAE H / V | Offline RMSE H / V |
+| :--- | :---: | :---: | :---: | :---: |
+| Nested, selected by fixation MAE | **0.92 ± 0.43 / 1.34 ± 0.55** | 2.99 / 3.18 | **0.66 ± 0.30 / 1.02 ± 0.54** | 2.73 / 3.12 |
+| Nested, selected by RMSE | 1.41 ± 0.54 / 1.62 ± 0.49 | 2.07 / 2.31 | 1.19 ± 0.39 / 1.42 ± 0.41 | 1.96 / 2.20 |
+| Best combination picked on the test folds (fixation MAE) | 0.91 / 1.32 | 2.99 / 3.21 | 0.69 / 0.95 | 2.71 / 3.11 |
+| 60 s baseline, engineered features, all windows | 1.90 / 2.26 | 2.48 / 2.75 | 1.56 / 1.83 | 2.25 / 2.47 |
+
+- **A 30 s baseline again.** Every fold on both tracks picks a 30 s drift baseline. Real-time nested
+  selection (0.92 / 1.34°) beats the Dataset 2 setup applied to Dataset 4 (60 s, context + range,
+  fixation windows: 1.11 / 1.51°).
+- **Context features always; range features in 3 of 5 folds.** Selecting by fixation MAE picks
+  fixation-only training with context features in every fold, and adds the range features in 3.
+  Selecting by RMSE picks all training windows, mostly without range features.
+- **Choosing on the test folds was barely optimistic with 14 subjects:** at most 0.07°.
+- Results: `reports/experiments/nested_cv/dataset4/{realtime,offline}/`.
+
 #### Per-subject significance
 
 `scripts/subject_statistics.py` compares two models on each subject's fixation MAE. It runs a
@@ -842,7 +863,7 @@ model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curve
 | `dataset4_known_start.yaml` | `reports/experiments/dataset4/known_start/` | Dataset 4 known-start protocol |
 | `scripts/nested_cv.py` with `dataset2_range_{causal,centred}_weighted.yaml` | `reports/experiments/nested_cv/dataset2/{realtime,offline}/` | Nested cross-subject selection of baseline window, features and training windows |
 | `scripts/nested_range_settings.py` with `dataset2_range_causal_weighted.yaml` | `reports/experiments/nested_cv/dataset2/realtime_range_settings/` | Nested selection of the rolling-range windows and quantiles |
-| `scripts/nested_cv.py` with `dataset3_range_causal_weighted.yaml` | `reports/experiments/nested_cv/dataset3/{realtime,offline}/` | Nested selection on Dataset 3 |
+| `scripts/nested_cv.py` with `dataset{3,4}_range_causal_weighted.yaml` | `reports/experiments/nested_cv/dataset{3,4}/{realtime,offline}/` | Nested selection on Datasets 3 and 4 |
 | `scripts/range_stress_test.py` with `dataset2_range_causal_weighted.yaml` | `reports/experiments/range_stress_test/dataset2/` | Range features when test gaze covers only part of the screen |
 | `scripts/subject_statistics.py` | `reports/experiments/statistics/` | Per-subject Wilcoxon tests and bootstrap confidence intervals |
 | `scripts/known_start_fusion.py --dataset datasetN` | `reports/experiments/known_start_fusion/datasetN/` | Known start fused with cross-subject XGBoost |
