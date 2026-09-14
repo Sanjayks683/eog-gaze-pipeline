@@ -1,0 +1,46 @@
+# configs/dataset1_robust_line_causal.yaml
+# ========================================
+# Dataset 1 (Zero-Centred Bipolar: 6 subjects, chin rest, 300 trials each in three
+# sessions of 100). Every trial goes from the screen centre to a random target and
+# back, then a blink. Real-time baseline with the settings of
+# dataset2_robust_line_causal.yaml: past-only 60 s robust-line drift baseline.
+# Only the bipolar H and V were recorded (EOG_0 and EOG_1 are the same two signals),
+# so windows use the bipolar channels. Kernel SVC/SVR are skipped as on Datasets 3
+# and 4; the random forest runs on the CPU, XGBoost and the deep model on the GPU.
+#
+#   python main.py --config configs/dataset1_robust_line_causal.yaml --phase preprocess
+#   python main.py --config configs/dataset1_robust_line_causal.yaml --phase train_classical
+#   python main.py --config configs/dataset1_robust_line_causal.yaml --phase train_deep
+#   python main.py --config configs/dataset1_robust_line_causal.yaml --phase compare
+
+data:
+  datasets_to_load:
+    - "dataset1"
+  window_channel_mode: "bipolar"
+
+preprocessing:
+  drift_removal_method: "robust_line"
+  baseline_window_sec: 60.0
+  baseline_causal: true
+  baseline_clip_mad: 3.0
+
+cv:
+  classical_classifiers: ["rf"]
+  classical_regressors: ["xgb"]
+  xgb_device: "cuda"
+
+model:
+  model_type: "conv_bilstm"
+  loss_type: "range_preserving"
+  lambda_corr: 0.5
+  lambda_var: 0.2
+  huber_delta: 2.0
+  calibration_prompt_sec: 30.0
+  lr: 0.0003
+  max_epochs: 150
+  early_stopping_patience: 15
+
+paths:
+  data_processed: "data/processed_dataset1/robustline60_causal"
+  results: "reports/experiments/dataset1/robustline60_causal"
+  reports_figures: "reports/experiments/dataset1/robustline60_causal/figures"

@@ -1,0 +1,40 @@
+{
+  "description": "5-fold cross-subject real-time XGBoost (context + range features, weighted training) whose window predictions feed the fused known-start estimator",
+  "config": "configs/dataset1_range_causal_weighted.yaml",
+  "xgb_device": "cuda",
+  "rmse_h_deg": 2.6047309974330886,
+  "rmse_v_deg": 2.5148830931022115,
+  "fixation_mae_h_deg": 1.6951043722960752,
+  "fixation_mae_v_deg": 2.1821747382430776,
+  "fixation_mae_h_sd_deg": 0.4662167398149715,
+  "fixation_mae_v_sd_deg": 0.4774215893298862,
+  "n_fixation_windows": 8048,
+  "fixation_mae_per_subject": {
+    "S1": [
+      1.171292889074771,
+      2.3721774490635865
+    ],
+    "S2": [
+      1.3082698841414824,
+      1.8656177132939036
+    ],
+    "S3": [
+      2.0578725827707407,
+      2.03140977642284
+    ],
+    "S4": [
+      2.3621578527687155,
+      2.5565233846532087
+    ],
+    "S5": [
+      2.020527131398046,
+      2.86294207371434
+    ],
+    "S6": [
+      1.2505058936226965,
+      1.4043780323105852
+    ]
+  },
+  "score_fixation": 1.9386395552695763,
+  "score_rmse": 2.5598070452676502
+}

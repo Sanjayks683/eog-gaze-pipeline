@@ -1,0 +1,38 @@
+# configs/dataset1_range_causal_fixation.yaml
+# ===========================================
+# Dataset 1, real-time: context and rolling-range features as in
+# dataset1_range_causal_weighted.yaml, but the classical regressors train on fixation
+# windows only (the lowest-fixation-MAE Dataset 2 setup). Shares the processed data of
+# dataset1_range_causal_weighted.yaml, so no separate preprocess run is needed.
+#
+#   python main.py --config configs/dataset1_range_causal_fixation.yaml --phase train_classical
+#   python main.py --config configs/dataset1_range_causal_fixation.yaml --phase compare
+
+data:
+  datasets_to_load:
+    - "dataset1"
+  window_channel_mode: "bipolar"
+
+preprocessing:
+  drift_removal_method: "robust_line"
+  baseline_window_sec: 60.0
+  baseline_causal: true
+  baseline_clip_mad: 3.0
+  context_baselines:
+    - ["robust_mean", 30.0]
+    - ["robust_mean", 120.0]
+    - ["robust_line", 120.0]
+  context_lags_sec: [1.0, 2.0, 4.0, 8.0]
+  context_range_windows_sec: [60.0, 120.0, 240.0]
+  context_range_quantiles: [[0.10, 0.90], [0.05, 0.95]]
+
+cv:
+  classical_classifiers: ["rf"]
+  classical_regressors: ["xgb"]
+  xgb_device: "cuda"
+  regression_train_windows: "fixation"
+
+paths:
+  data_processed: "data/processed_dataset1/range_causal"
+  results: "reports/experiments/dataset1/range_causal_fixation"
+  reports_figures: "reports/experiments/dataset1/range_causal_fixation/figures"

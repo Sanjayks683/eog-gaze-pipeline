@@ -439,6 +439,55 @@ the paper's comparison method [BSPC 47, 2019]):
   than by the authors; the paper gives no outlier threshold, so the far-out fence is a stand-in; the detector and
   blink rules were set by inspecting Dataset 2 events from all subjects; and blink decisions look
   up to 150 ms past the end of a movement.
+### Dataset 1
+
+The same 5-fold cross-subject protocol and Dataset 2 settings, on Dataset 1 (Zero-Centred Bipolar).
+- **Recording:** 6 subjects on a chin rest, 300 trials each in three sessions of 100, with only the
+  bipolar H and V recorded.
+- **Trials:** every trial goes from the centre to a random target (about ±23° H, ±13° V) and back,
+  then a blink, so half of the cues are at the centre.
+- **Targets:** the loader spreads the per-cue targets over the samples (see the
+  [data table](#data-description-table) note). Before that fix, Dataset 1's regression labels were
+  meaningless.
+- **Differences from Dataset 2:** SVC/SVR are skipped and XGBoost runs on the GPU, as on Datasets 3
+  and 4.
+- **Published numbers:** the Dataset 1 paper (Barbara et al., BSPC 57, 2020) compares drift-removal
+  methods with errors normalised by the screen distance rather than in degrees, so it has no row here.
+
+| Dataset 1, real-time, 5-fold cross-subject | Fixation MAE H / V (deg) | RMSE H / V (deg) |
+| :--- | :---: | :---: |
+| Train-fold mean angle | 5.91 ± 0.46 / 3.28 ± 0.17 | 6.43 / 3.59 |
+| Robust line 60 s, XGBoost | 3.22 ± 0.66 / 3.44 ± 0.79 | 3.83 / 3.50 |
+| Robust line 60 s, Deep Conv1D+BiLSTM | 2.89 ± 0.55 / 3.11 ± 0.63 | 3.66 / 3.24 |
+| + context + range, XGBoost, weighted training | 1.70 ± 0.47 / **2.18 ± 0.48** | **2.60 / 2.51** |
+| + context + range, XGBoost, fixation windows only | **1.52 ± 0.33** / 2.25 ± 0.53 | 4.15 / 3.15 |
+
+| Dataset 1 known start, MAE H / V (deg) | Fit | All segments | Outlier segments dropped |
+| :--- | :--- | :---: | :---: |
+| Short, detected saccades | same subject | 0.90 ± 0.21 / 1.26 ± 0.13 | 0.72 ± 0.18 / 1.17 ± 0.12 |
+| Short, detected saccades | unseen subject | 0.94 ± 0.25 / 1.43 ± 0.22 | 0.80 ± 0.28 / 1.37 ± 0.21 |
+| Long 32 s, detected saccades | same subject | 4.14 ± 1.69 / 8.54 ± 2.33 | 3.71 ± 1.73 / 8.23 ± 2.58 |
+| Long 32 s, fused with cross-subject XGBoost | same subject | 1.17 ± 0.22 / 1.55 ± 0.27 | **1.15 ± 0.23 / 1.55 ± 0.27** |
+| Long 32 s, fused with cross-subject XGBoost | unseen subject | 1.16 ± 0.24 / 1.55 ± 0.28 | 1.14 ± 0.26 / 1.54 ± 0.28 |
+
+- **Context and range features matter most here.** Weighted XGBoost removes 71% / 34% of the
+  mean-angle fixation error. It roughly halves the error of XGBoost without the features
+  (3.22 / 3.44° → 1.70 / 2.18°). Without them, XGBoost's vertical error is no better than always
+  predicting the mean angle (3.44° vs 3.28°): vertical targets span only about ±13°, and every
+  trial returns to the centre.
+- **Smaller errors than Dataset 2** (1.70° vs 4.43° horizontal with the same setup), although the
+  horizontal targets span as far. The montage, sessions and subjects all differ, and none of them
+  was tested as the cause.
+- **Deep model:** it beats XGBoost without context features (2.89 / 3.11° vs 3.22 / 3.44°), and gets
+  no context features itself.
+- **Known start:**
+  - **Short segments:** 0.72 / 1.17°.
+  - **Long segments:** they drift vertically (8.23°), as on the other datasets.
+  - **Fused with cross-subject XGBoost:** long segments reach 1.15 / 1.55°. The fit picks a 1 s time
+    constant almost everywhere, so here the fused estimate mostly follows XGBoost after the first
+    seconds of a segment.
+  - Results: `reports/experiments/dataset1/known_start/` and `reports/experiments/known_start_fusion/dataset1/`.
+
 ### Datasets 3 and 4
 
 The same pipeline and 5-fold cross-subject protocol, with the settings chosen on Dataset 2 applied
@@ -697,9 +746,9 @@ on the test part. Test parts are never trained on.
 ## Experiment Index
 
 Every experiment is one YAML config in `configs/`, and no two experiments share an output folder.
-Dataset 2 experiments write to `reports/experiments/<name>/`; Datasets 3 and 4 write to
-`reports/experiments/dataset3/<name>/` and `reports/experiments/dataset4/<name>/`, with processed
-data under `data/processed_datasetN/<name>/` (git-ignored). Each results folder holds one JSON per
+Dataset 2 experiments write to `reports/experiments/<name>/`; Datasets 1, 3 and 4 write to
+`reports/experiments/datasetN/<name>/`, with processed data under `data/processed_datasetN/<name>/`
+(git-ignored). Each results folder holds one JSON per
 model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curves for deep runs.
 
 | Config | Results | What it tests |
@@ -711,8 +760,12 @@ model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curve
 | `dataset2_context_causal{,_fixation}.yaml`, `dataset2_context_centred_fixation.yaml` | `reports/experiments/context_*/` | Context features |
 | `dataset2_range_causal{,_weighted,_fixation}.yaml`, `dataset2_range_centred_{fixation,weighted}.yaml` | `reports/experiments/range_*/` | Context + rolling-range features; training-window choice |
 | `dataset2_known_start.yaml` | `reports/experiments/known_start/` | The paper's known-start protocol (separate task) |
-| `dataset3_robust_line_causal.yaml` | `reports/experiments/dataset3/robustline60_causal/` | Dataset 3 real-time baseline (no VOR model) |
+| `dataset1_robust_line_causal.yaml` | `reports/experiments/dataset1/robustline60_causal/` | Dataset 1 real-time baseline (bipolar H and V) |
+| `dataset1_range_causal_{weighted,fixation}.yaml` | `reports/experiments/dataset1/range_causal_*/` | Dataset 1 with the best Dataset 2 setup |
+| `dataset1_known_start.yaml` | `reports/experiments/dataset1/known_start/` | Dataset 1 known-start protocol |
+| `dataset3_robust_line_causal.yaml` | `reports/experiments/dataset3/robustline60_causal/` | Dataset 3 real-time baseline (no head pose) |
 | `dataset3_range_causal_{weighted,fixation}.yaml` | `reports/experiments/dataset3/range_causal_*/` | Dataset 3 with the best Dataset 2 setup |
+| `dataset3_range_head_causal_{weighted,fixation}.yaml` | `reports/experiments/dataset3/range_head_causal_*/` | Dataset 3 with head-pose features added |
 | `dataset3_known_start.yaml` | `reports/experiments/dataset3/known_start/` | Dataset 3 known-start protocol |
 | `dataset4_robust_line_causal.yaml` | `reports/experiments/dataset4/robustline60_causal/` | Dataset 4 real-time baseline (18 channels) |
 | `dataset4_range_causal_{weighted,fixation}.yaml` | `reports/experiments/dataset4/range_causal_*/` | Dataset 4 with the best Dataset 2 setup |

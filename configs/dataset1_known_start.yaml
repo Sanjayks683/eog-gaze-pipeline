@@ -1,0 +1,16 @@
+# configs/dataset1_known_start.yaml
+# =================================
+# Dataset 1: the known-start protocol of configs/dataset2_known_start.yaml, on the
+# recorded bipolar H and V. Trials go centre -> random target -> centre -> blink,
+# 100 per session, so each third of a recording is roughly one session. The Dataset 1
+# paper (Barbara et al., BSPC 57, 2020) reports errors normalised by the screen
+# distance rather than in degrees, so the table has no "Published" rows.
+#
+#   python main.py --config configs/dataset1_known_start.yaml --phase known_start
+
+data:
+  datasets_to_load:
+    - "dataset1"
+
+paths:
+  results: "reports/experiments/dataset1/known_start"
