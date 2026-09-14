@@ -1,0 +1,284 @@
+{
+  "dataset2": {
+    "realtime": {
+      "model": "nested-selected (realtime)",
+      "reference": "window=60s features=engineered train=all (realtime)",
+      "n_subjects": 10,
+      "model_mean_deg": [
+        4.485,
+        3.809
+      ],
+      "reference_mean_deg": [
+        5.652,
+        4.568
+      ],
+      "model_ci95_deg": {
+        "h": [
+          3.791,
+          5.183
+        ],
+        "v": [
+          3.211,
+          4.482
+        ]
+      },
+      "improvement_deg": [
+        1.167,
+        0.759
+      ],
+      "improvement_ci95_deg": {
+        "h": [
+          0.505,
+          1.995
+        ],
+        "v": [
+          0.523,
+          1.011
+        ]
+      },
+      "subjects_improved": {
+        "h": 9,
+        "v": 10
+      },
+      "wilcoxon_p": {
+        "h": 0.009765625,
+        "v": 0.001953125,
+        "mean_hv": 0.001953125
+      }
+    },
+    "offline": {
+      "model": "nested-selected (offline)",
+      "reference": "window=60s features=engineered train=all (offline)",
+      "n_subjects": 10,
+      "model_mean_deg": [
+        3.129,
+        3.391
+      ],
+      "reference_mean_deg": [
+        3.764,
+        3.498
+      ],
+      "model_ci95_deg": {
+        "h": [
+          2.762,
+          3.509
+        ],
+        "v": [
+          2.932,
+          3.864
+        ]
+      },
+      "improvement_deg": [
+        0.635,
+        0.107
+      ],
+      "improvement_ci95_deg": {
+        "h": [
+          0.373,
+          0.892
+        ],
+        "v": [
+          -0.126,
+          0.314
+        ]
+      },
+      "subjects_improved": {
+        "h": 9,
+        "v": 7
+      },
+      "wilcoxon_p": {
+        "h": 0.00390625,
+        "v": 0.193359375,
+        "mean_hv": 0.009765625
+      }
+    }
+  },
+  "dataset3": {
+    "range_weighted": {
+      "model": "context + range, weighted",
+      "reference": "engineered, all windows",
+      "n_subjects": 8,
+      "model_mean_deg": [
+        4.42,
+        4.46
+      ],
+      "reference_mean_deg": [
+        4.652,
+        4.674
+      ],
+      "model_ci95_deg": {
+        "h": [
+          3.826,
+          4.99
+        ],
+        "v": [
+          3.765,
+          5.216
+        ]
+      },
+      "improvement_deg": [
+        0.232,
+        0.215
+      ],
+      "improvement_ci95_deg": {
+        "h": [
+          -0.039,
+          0.504
+        ],
+        "v": [
+          -0.483,
+          0.81
+        ]
+      },
+      "subjects_improved": {
+        "h": 6,
+        "v": 5
+      },
+      "wilcoxon_p": {
+        "h": 0.1953125,
+        "v": 0.3828125,
+        "mean_hv": 0.3828125
+      }
+    },
+    "range_fixation": {
+      "model": "context + range, fixation windows only",
+      "reference": "engineered, all windows",
+      "n_subjects": 8,
+      "model_mean_deg": [
+        4.282,
+        4.355
+      ],
+      "reference_mean_deg": [
+        4.652,
+        4.674
+      ],
+      "model_ci95_deg": {
+        "h": [
+          3.715,
+          4.823
+        ],
+        "v": [
+          3.66,
+          5.114
+        ]
+      },
+      "improvement_deg": [
+        0.37,
+        0.319
+      ],
+      "improvement_ci95_deg": {
+        "h": [
+          0.069,
+          0.666
+        ],
+        "v": [
+          -0.313,
+          0.848
+        ]
+      },
+      "subjects_improved": {
+        "h": 6,
+        "v": 5
+      },
+      "wilcoxon_p": {
+        "h": 0.078125,
+        "v": 0.3828125,
+        "mean_hv": 0.1484375
+      }
+    }
+  },
+  "dataset4": {
+    "range_weighted": {
+      "model": "context + range, weighted",
+      "reference": "engineered, all windows",
+      "n_subjects": 14,
+      "model_mean_deg": [
+        1.328,
+        1.561
+      ],
+      "reference_mean_deg": [
+        1.905,
+        2.265
+      ],
+      "model_ci95_deg": {
+        "h": [
+          1.022,
+          1.687
+        ],
+        "v": [
+          1.328,
+          1.814
+        ]
+      },
+      "improvement_deg": [
+        0.577,
+        0.704
+      ],
+      "improvement_ci95_deg": {
+        "h": [
+          0.494,
+          0.659
+        ],
+        "v": [
+          0.593,
+          0.814
+        ]
+      },
+      "subjects_improved": {
+        "h": 14,
+        "v": 14
+      },
+      "wilcoxon_p": {
+        "h": 0.0001220703125,
+        "v": 0.0001220703125,
+        "mean_hv": 0.0001220703125
+      }
+    },
+    "range_fixation": {
+      "model": "context + range, fixation windows only",
+      "reference": "engineered, all windows",
+      "n_subjects": 14,
+      "model_mean_deg": [
+        1.11,
+        1.508
+      ],
+      "reference_mean_deg": [
+        1.905,
+        2.265
+      ],
+      "model_ci95_deg": {
+        "h": [
+          0.836,
+          1.436
+        ],
+        "v": [
+          1.243,
+          1.795
+        ]
+      },
+      "improvement_deg": [
+        0.794,
+        0.757
+      ],
+      "improvement_ci95_deg": {
+        "h": [
+          0.695,
+          0.893
+        ],
+        "v": [
+          0.635,
+          0.871
+        ]
+      },
+      "subjects_improved": {
+        "h": 14,
+        "v": 14
+      },
+      "wilcoxon_p": {
+        "h": 0.0001220703125,
+        "v": 0.0001220703125,
+        "mean_hv": 0.0001220703125
+      }
+    }
+  }
+}

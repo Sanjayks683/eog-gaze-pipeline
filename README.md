@@ -452,10 +452,14 @@ deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numb
 | *Published: dual Kalman filter + VOR model, long* | — | — | 4.64 ± 1.37 / 6.10 ± 2.58 | — |
 | *Published: signal differencing, long* | — | — | 8.13 ± 1.15 / 11.25 ± 5.03 | — |
 
-- **Context and range features with weighted training help on both datasets:** XGBoost's fixation
-  MAE drops from 1.90 / 2.26 to 1.33 / 1.56° on Dataset 4 and from 4.65 / 4.67 to 4.42 / 4.46° on
-  Dataset 3. The features and the weighting were not run separately here, so the gain belongs to
-  the combination. It holds on Dataset 4, whose targets are not spread evenly (centre plus a 12° ring).
+- **Context and range features with weighted training:** XGBoost's fixation MAE drops from
+  1.90 / 2.26 to 1.33 / 1.56° on Dataset 4 and from 4.65 / 4.67 to 4.42 / 4.46° on Dataset 3.
+  On Dataset 4 all 14 subjects improve on both axes (Wilcoxon signed-rank p < 0.001; bootstrap
+  95% CI of the improvement 0.49–0.66 / 0.59–0.81°). On Dataset 3, 6 of 8 subjects improve
+  horizontally and 5 of 8 vertically (p = 0.20 / 0.38; CI −0.04–0.50 / −0.48–0.81°), so with 8
+  subjects that gain is not significant. The features and the weighting were not run separately
+  here, so the gain belongs to the combination. It holds on Dataset 4, whose targets are not spread
+  evenly (centre plus a 12° ring). Tests: `scripts/subject_statistics.py`.
 - **Compared with always predicting the mean angle,** weighted XGBoost removes
   65% / 45% (H / V) of the fixation error on Dataset 2,
   65% / 59% on Dataset 4 and 50% / 29% on
@@ -557,6 +561,31 @@ quantiles) keep their configured values and were not part of the selection.
 - Results: `reports/experiments/nested_cv/dataset2/{realtime,offline}/` (`nested_cv_results.json`
   with each fold's inner scores and choice, and `fixed_candidates.csv` with every combination scored
   on the test folds).
+
+#### Per-subject significance
+
+`scripts/subject_statistics.py` compares two models on each subject's fixation MAE. It runs a
+two-sided Wilcoxon signed-rank test and computes a bootstrap 95% confidence interval of the mean
+improvement (10,000 resamples of subjects). With 8–14 subjects these tests have little power, and
+the p-values are not corrected for multiple comparisons. The reference is always a 60 s real-time
+(Dataset 2 offline: centred) baseline with engineered features, trained on all windows.
+
+| Fixation MAE improvement over the reference | Subjects | Mean H / V (deg) | 95% CI H | 95% CI V | Subjects improved H / V | Wilcoxon p H / V |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| Dataset 2 real-time, nested selection | 10 | 1.17 / 0.76 | 0.51 – 2.00 | 0.52 – 1.01 | 9 / 10 | 0.010 / 0.002 |
+| Dataset 2 offline, nested selection | 10 | 0.64 / 0.11 | 0.37 – 0.89 | −0.13 – 0.31 | 9 / 7 | 0.004 / 0.19 |
+| Dataset 3, + context + range, weighted | 8 | 0.23 / 0.22 | −0.04 – 0.50 | −0.48 – 0.81 | 6 / 5 | 0.20 / 0.38 |
+| Dataset 3, + context + range, fixation windows | 8 | 0.37 / 0.32 | 0.07 – 0.67 | −0.31 – 0.85 | 6 / 5 | 0.078 / 0.38 |
+| Dataset 4, + context + range, weighted | 14 | 0.58 / 0.70 | 0.49 – 0.66 | 0.59 – 0.81 | 14 / 14 | < 0.001 / < 0.001 |
+| Dataset 4, + context + range, fixation windows | 14 | 0.79 / 0.76 | 0.70 – 0.89 | 0.64 – 0.87 | 14 / 14 | < 0.001 / < 0.001 |
+
+- **Consistent across subjects:** on Dataset 2 real-time and on Dataset 4, the improvement holds on
+  both axes. All 14 Dataset 4 subjects and 9–10 of the 10 Dataset 2 subjects improve.
+- **Offline on Dataset 2, the gain is horizontal only.** Vertical error barely changes (7 of 10
+  subjects improve; the confidence interval includes 0).
+- **Dataset 3 is not significant.** 5–6 of 8 subjects improve, and only the fixation-window model's
+  horizontal confidence interval excludes 0.
+- Results: `reports/experiments/statistics/statistics.json`.
 
 ---
 
