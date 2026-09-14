@@ -84,6 +84,7 @@ def test_fixation_mae_averages_subjects_not_windows():
     assert m["fixation_mae_v_deg"] == pytest.approx(3.0)
     assert m["fixation_mae_h_sd_deg"] == pytest.approx(1.0)
     assert m["n_fixation_windows"] == 5
+    assert m["fixation_mae_per_subject"] == {"A": [1.0, 1.0], "B": [3.0, 5.0]}
     assert compute_fixation_metrics(y_true, y_pred, [{"subject_id": "A"}] * 6) == {}
 
 

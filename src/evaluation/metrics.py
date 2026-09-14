@@ -82,16 +82,15 @@ def compute_fixation_metrics(
         return {}
     subjects = np.array([m["subject_id"] for m in metadata])
     abs_err = np.abs(np.asarray(y_pred, dtype=float) - np.asarray(y_true, dtype=float))
-    per_subject = np.array([
-        abs_err[fixation & (subjects == s)].mean(axis=0)
-        for s in np.unique(subjects[fixation])
-    ])
+    subject_ids = np.unique(subjects[fixation])
+    per_subject = np.array([abs_err[fixation & (subjects == s)].mean(axis=0) for s in subject_ids])
     return {
         "fixation_mae_h_deg": float(per_subject[:, 0].mean()),
         "fixation_mae_v_deg": float(per_subject[:, 1].mean()),
         "fixation_mae_h_sd_deg": float(per_subject[:, 0].std()),
         "fixation_mae_v_sd_deg": float(per_subject[:, 1].std()),
         "n_fixation_windows": int(fixation.sum()),
+        "fixation_mae_per_subject": {str(s): [float(h), float(v)] for s, (h, v) in zip(subject_ids, per_subject)},
     }
 
 

@@ -186,6 +186,55 @@ def run_classification_cv(
     return results
 
 
+def fit_predict_regression_fold(
+    X: np.ndarray,
+    y: np.ndarray,
+    train_idx: np.ndarray,
+    test_idx: np.ndarray,
+    model_name: str = "xgb",
+    use_grid_search: bool = False,
+    fixation: Optional[np.ndarray] = None,
+    train_windows: str = "all",
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Fit one regressor on train_idx and predict test_idx, applying the training-window
+    choice ("all", "fixation" or "weighted"; see run_regression_cv).
+
+    Returns (y_pred, y_true, test_idx) for the test windows with finite targets.
+    """
+    if train_windows == "fixation":
+        train_idx = train_idx[fixation[train_idx]]
+    X_tr, X_te = X[train_idx], X[test_idx]
+    y_tr, y_te = y[train_idx], y[test_idx]
+    w_tr = (np.where(fixation[train_idx], 1.0, CFG.cv.regression_nonfixation_weight)
+            if train_windows == "weighted" else None)
+
+    valid_tr = ~np.isnan(y_tr).any(axis=1)
+    if not valid_tr.all():
+        X_tr, y_tr = X_tr[valid_tr], y_tr[valid_tr]
+        w_tr = None if w_tr is None else w_tr[valid_tr]
+    valid_te = ~np.isnan(y_te).any(axis=1)
+    if not valid_te.all():
+        X_te, y_te = X_te[valid_te], y_te[valid_te]
+
+    weight_param = "sample_weight"
+    if model_name == "svr":
+        model = build_svr_pipeline(use_grid_search)
+        X_fit, y_fit, w_fit = _subsample_train(X_tr, y_tr, "SVR", w_tr)
+        weight_param = "reg__sample_weight"
+    elif model_name == "xgb":
+        model = build_xgb_regressor(use_grid_search)
+        X_fit, y_fit, w_fit = X_tr, y_tr, w_tr
+    elif model_name == "mean":
+        model = DummyRegressor(strategy="mean")
+        X_fit, y_fit, w_fit = X_tr, y_tr, w_tr
+    else:
+        raise ValueError(f"Unknown regressor: {model_name}")
+
+    model.fit(X_fit, y_fit, **({} if w_fit is None else {weight_param: w_fit}))
+    return model.predict(X_te), y_te, test_idx[valid_te]
+
+
 def run_regression_cv(
     X: np.ndarray,
     y: np.ndarray,
@@ -221,39 +270,10 @@ def run_regression_cv(
     all_preds, all_true, all_meta = [], [], []
 
     for fold_i, (train_idx, test_idx) in enumerate(folds):
-        if train_windows == "fixation":
-            train_idx = train_idx[fixation[train_idx]]
-        X_tr, X_te = X[train_idx], X[test_idx]
-        y_tr, y_te = y[train_idx], y[test_idx]
-        w_tr = (np.where(fixation[train_idx], 1.0, CFG.cv.regression_nonfixation_weight)
-                if train_windows == "weighted" else None)
-
-        valid_tr = ~np.isnan(y_tr).any(axis=1)
-        if not valid_tr.all():
-            X_tr, y_tr = X_tr[valid_tr], y_tr[valid_tr]
-            w_tr = None if w_tr is None else w_tr[valid_tr]
-        valid_te = ~np.isnan(y_te).any(axis=1)
-        if not valid_te.all():
-            X_te, y_te = X_te[valid_te], y_te[valid_te]
+        y_pred, y_te, kept_idx = fit_predict_regression_fold(
+            X, y, train_idx, test_idx, model_name, use_grid_search, fixation, train_windows)
         if metadata is not None:
-            all_meta.extend(metadata[i] for i in test_idx[valid_te])
-
-        weight_param = "sample_weight"
-        if model_name == "svr":
-            model = build_svr_pipeline(use_grid_search)
-            X_fit, y_fit, w_fit = _subsample_train(X_tr, y_tr, "SVR", w_tr)
-            weight_param = "reg__sample_weight"
-        elif model_name == "xgb":
-            model = build_xgb_regressor(use_grid_search)
-            X_fit, y_fit, w_fit = X_tr, y_tr, w_tr
-        elif model_name == "mean":
-            model = DummyRegressor(strategy="mean")
-            X_fit, y_fit, w_fit = X_tr, y_tr, w_tr
-        else:
-            raise ValueError(f"Unknown regressor: {model_name}")
-
-        model.fit(X_fit, y_fit, **({} if w_fit is None else {weight_param: w_fit}))
-        y_pred = model.predict(X_te)
+            all_meta.extend(metadata[i] for i in kept_idx)
 
         rmse_h = float(np.sqrt(mean_squared_error(y_te[:, 0], y_pred[:, 0])))
         rmse_v = float(np.sqrt(mean_squared_error(y_te[:, 1], y_pred[:, 1])))
