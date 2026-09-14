@@ -17,3 +17,7 @@ backups/
 
 # Duplicate "latest run" copy of reports/deep_model_<type>.json (16 MB)
 reports/**/deep_model_results.json
+
+# Dataset 4 deep-model results with per-window metadata (59 MB); its numbers are in the
+# master_results_table.csv next to it
+reports/experiments/dataset4/robustline60_causal/deep_model_conv_bilstm.json

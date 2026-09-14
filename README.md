@@ -12,6 +12,10 @@
    The class names `saccade_onset`, `saccade_return_or_second` and `blink` refer to these whole
    intervals, not to detected saccade/blink events, and `rest` never occurs in the EyeCon data.
 2. **Regresses** continuous gaze angle (horizontal + vertical, in degrees) from raw EOG
+3. **Replicates the published known-start protocol** (gaze displacement from a known starting
+   gaze) as a separate evaluation, so results can be set against Barbara et al.'s papers
+4. **Checks the results**: nested cross-validation, a stress test of the range features, and
+   per-subject significance tests
 
 Models compared:
 - Trivial baselines (majority class / train-fold mean angle): the floor every model must beat
@@ -69,10 +73,9 @@ This will:
 - Print `fs`, channel names, duration, event timestamps
 - Save one plot per dataset to `reports/figures/`
 
-**Fill the table below from the script output — do not guess:**
-
 ### Data Description Table
-*(Populate after running `scripts/inspect_raw.py`)*
+
+Filled from the `scripts/inspect_raw.py` output and each dataset's Data Description PDF.
 
 | Field | Dataset 1 | Dataset 2 | Dataset 3 | Dataset 4 |
 |-------|-----------|-----------|-----------|-----------|
@@ -88,7 +91,9 @@ This will:
 
 Sampling rates, subject and trial counts are from each dataset's Data Description PDF
 (g.tec g.USBamp, Fs = 256 Hz). The loader cannot text-parse the PDFs, so the rates live in
-`CFG.data.fs_hz_by_dataset`; an earlier version silently fell back to 250 Hz.
+`CFG.data.fs_hz_by_dataset`; an earlier version silently fell back to 250 Hz. Dataset 1's
+`TargetGA.mat` holds one row per cue (each trial's target, then the centre); the loader spreads
+the rows over the samples of each cue's interval (`expand_cue_targets` in `src/data/loaders.py`).
 
 ---
 
@@ -639,12 +644,12 @@ eog-gaze-pipeline/
 │   ├── inspect_raw.py       # Phase 0 verification
 │   ├── nested_cv.py         # nested cross-subject model selection
 │   ├── range_stress_test.py # range features under skewed gaze
-│   └── subject_statistics.py  # per-subject significance tests and confidence intervals
+│   ├── subject_statistics.py  # per-subject significance tests and confidence intervals
+│   └── make_figures.py      # result figures from the saved JSON files
 ├── tests/                   # pytest test suite
-├── notebooks/               # EDA and results notebooks
 ├── reports/
-│   ├── experiments/         # <name>/ (Dataset 2), dataset3/<name>/, dataset4/<name>/
-│   └── figures/             # all saved plots
+│   ├── experiments/         # <name>/ (Dataset 2), dataset1/<name>/, dataset3/<name>/, dataset4/<name>/
+│   └── figures/             # raw-signal plots; results/ holds the result figures
 └── requirements.txt
 ```
 
@@ -697,28 +702,34 @@ All four papers must be cited in any work using this pipeline:
 
 ---
 
-## Reproducing the Headline Numbers
+## Reproducing the Results
 
-1. Download all four datasets (see above)
-2. `python scripts/inspect_raw.py` — verify parsers work
-3. Fill the Data Description table above
-4. `python scripts/verify_montage.py` — verify bipolar channel pairs + sign
-   conventions against the recorded target angles; update `MONOPOLAR_MAPS` in
-   [`src/data/unify.py`](src/data/unify.py) if the winners disagree
-   (the shipped maps were verified this way on 2026-08-21 — the original
-   placeholder mapping had H/V swapped for Datasets 2–4)
-5. Run the full pipeline commands above in order (Phases 1–8)
-6. Results CSV: `reports/master_results_table.csv`
-7. All figures: `reports/figures/`
+1. Download the four datasets (see above) and run `python scripts/inspect_raw.py` to check that
+   the parsers read them.
+2. `python scripts/verify_montage.py` checks the bipolar channel pairs and signs against the
+   recorded target angles. The shipped maps were verified this way on 2026-08-21 (the original
+   placeholder maps had H and V swapped for Datasets 2–4); update `MONOPOLAR_MAPS` in
+   [`src/data/unify.py`](src/data/unify.py) if the check disagrees.
+3. Run each experiment in the [Experiment Index](#experiment-index). Every config's header lists
+   its phases, usually `preprocess`, `train_classical`, `train_deep` and `compare` (`known_start`
+   for the known-start configs). Each writes to its own results folder, including a
+   `master_results_table.csv`.
+4. Robustness checks: `scripts/nested_cv.py` for both tracks and `scripts/range_stress_test.py`,
+   then `scripts/subject_statistics.py`, which reads the nested results.
+5. `python scripts/make_figures.py` writes the result figures to `reports/figures/results/`.
+6. `pytest tests/` takes about a minute; tests that need the datasets skip without them.
+
+XGBoost on the GPU (`cv.xgb_device: cuda`: Datasets 1, 3 and 4 and the robustness scripts) gives
+slightly different numbers from the CPU XGBoost used for the Dataset 2 configs.
 
 ---
 
 ## Appendix: Master Pitfall Checklist
 
-- [ ] Never split by trial — always by `subject_id` (automated in `test_no_subject_leakage.py`)
-- [ ] Drift removal happens BEFORE normalization, not after
-- [ ] Bipolar sign convention verified per-dataset (Phase 2.4) — `verify_sign_convention()` in `unify.py`
-- [ ] Class imbalance (blink rarity) accounted for via `CLASS_WEIGHTS` in `config.py`
+- [x] Never split by trial — always by `subject_id` (GroupKFold over subjects; automated in `test_no_subject_leakage.py`)
+- [x] Drift removal happens BEFORE normalization, not after (`preprocess_trials`: drift removal, then per-subject z-score)
+- [x] Bipolar sign convention verified per dataset — Datasets 2–4 with `scripts/verify_montage.py`, Dataset 1 from the EOG steps at cue onsets (see `src/data/unify.py`)
+- [x] Class imbalance (blink rarity) accounted for — `class_weight="balanced"` for RF / SVC, `model.auto_class_weights` for the deep model
 - [ ] Head-pose correction on Dataset 3 validated with before/after ablation (Phase 9)
-- [ ] Every reported metric traces to a saved JSON file in `reports/`
-- [ ] Deep model results reported honestly even if it loses to the classical baseline
+- [x] Every reported metric traces to a saved JSON file in `reports/` (Dataset 4's 59 MB deep-model JSON stays out of git; its numbers are in the master table next to it)
+- [x] Deep model results reported honestly even if it loses to the classical baseline

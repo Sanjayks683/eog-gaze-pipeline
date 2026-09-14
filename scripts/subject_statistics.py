@@ -8,9 +8,12 @@ results, on fixation MAE: two-sided Wilcoxon signed-rank tests paired by subject
 - Dataset 2: the nested-selected models from scripts/nested_cv.py (both tracks,
   selected by fixation MAE) against the baseline-only candidate of the same track
   (60 s baseline, engineered features, all windows).
-- Datasets 3 and 4: XGBoost with context + range features, weighted and fixation-only
-  training, against the baseline-only model (engineered features, all windows), refit
-  on the GPU from the processed data of the dataset{3,4}_range_causal_weighted configs.
+- Datasets 1, 3 and 4: XGBoost with context + range features, weighted and
+  fixation-only training, against the baseline-only model (engineered features, all
+  windows), refit on the GPU from the processed data of the
+  dataset{1,3,4}_range_causal_weighted configs.
+
+Each comparison also stores both models' per-subject values, for the figures.
 
     python scripts/subject_statistics.py
 
@@ -58,6 +61,8 @@ def compare(model: dict, reference: dict, model_name: str, reference_name: str, 
            "improvement_deg": (r - m).mean(axis=0).round(3).tolist(),
            "improvement_ci95_deg": ci(boot_diff),
            "subjects_improved": {"h": int((m[:, 0] < r[:, 0]).sum()), "v": int((m[:, 1] < r[:, 1]).sum())},
+           "per_subject_deg": {s: {"model": [round(float(x), 4) for x in model[s]],
+                                   "reference": [round(float(x), 4) for x in reference[s]]} for s in subjects},
            "wilcoxon_p": {}}
     for axis, (a, b) in {"h": (m[:, 0], r[:, 0]), "v": (m[:, 1], r[:, 1]),
                          "mean_hv": (m.mean(axis=1), r.mean(axis=1))}.items():
@@ -120,7 +125,7 @@ def refit_dataset(root: str, dataset: str) -> dict:
 def main() -> None:
     root = CFG.paths.project_root
     results = {"dataset2": dataset2(root)}
-    for dataset in ("dataset3", "dataset4"):
+    for dataset in ("dataset1", "dataset3", "dataset4"):
         results[dataset] = refit_dataset(root, dataset)
     out_dir = os.path.join(root, "reports", "experiments", "statistics")
     os.makedirs(out_dir, exist_ok=True)

@@ -22,10 +22,10 @@ A rightward saccade must produce a POSITIVE deflection in H after conversion.
 An upward saccade must produce a POSITIVE deflection in V after conversion.
 Any dataset where the sign comes out inverted gets an explicit flip documented here.
 
-NOTE: The exact electrode→key mapping MUST be verified against each dataset's
-Data Description file after download (Phase 0/Phase 2). Placeholder mappings
-below are filled in with the most common conventions for bipolar EOG and are
-annotated with TODO markers.
+The electrode→key maps below were verified against the recorded target angles with
+scripts/verify_montage.py on 2026-08-21 (the original placeholder maps had H and V
+swapped for Datasets 2–4). Dataset 1's recorded H and V were checked the same way on
+2026-09-14: their steps at cue onsets correlate +0.88 to +0.997 with the target steps.
 """
 
 from __future__ import annotations
