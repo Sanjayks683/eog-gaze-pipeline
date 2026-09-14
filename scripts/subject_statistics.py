@@ -84,6 +84,22 @@ def dataset2(root: str) -> dict:
     return out
 
 
+def dataset2_within_subject(root: str) -> dict:
+    """Paired tests for scripts/within_subject.py: each training variant against cross-subject training."""
+    path = os.path.join(root, "reports", "experiments", "within_subject", "dataset2", "within_subject.json")
+    if not os.path.isfile(path):
+        print(f"missing {path}; skipping the within-subject comparisons")
+        return {}
+    r = json.load(open(path))["results"]
+    cross = r["cross_subject"]["fixation_mae_per_subject"]
+    return {
+        "adapted_vs_cross": compare(r["adapted"]["fixation_mae_per_subject"], cross,
+                                    "adapted (other subjects + own fit part)", "cross subject"),
+        "within_vs_cross": compare(r["within_subject"]["fixation_mae_per_subject"], cross,
+                                   "within subject (own fit part only)", "cross subject"),
+    }
+
+
 def refit_dataset(root: str, dataset: str) -> dict:
     load_config_from_yaml(os.path.join(root, "configs", f"{dataset}_range_causal_weighted.yaml"))
     CFG.cv.xgb_device = "cuda"
@@ -124,7 +140,7 @@ def refit_dataset(root: str, dataset: str) -> dict:
 
 def main() -> None:
     root = CFG.paths.project_root
-    results = {"dataset2": dataset2(root)}
+    results = {"dataset2": dataset2(root), "dataset2_within_subject": dataset2_within_subject(root)}
     for dataset in ("dataset1", "dataset3", "dataset4"):
         results[dataset] = refit_dataset(root, dataset)
     out_dir = os.path.join(root, "reports", "experiments", "statistics")

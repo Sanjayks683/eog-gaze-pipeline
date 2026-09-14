@@ -322,6 +322,8 @@ range features.
 - **Not a like-for-like win:** the paper excludes outlier segments and fits every parameter on the
   test subject; this pipeline does neither, but scores 400 ms-settled windows rather than
   EOG-detected fixation samples, and uses whole ~13 min recordings rather than 32 s segments.
+  Trained the paper's within-subject way, the model does no better
+  ([within-subject protocol](#within-subject-protocol-dataset-2)).
 - **The short-segment results (~1.5–2°) are out of reach for this absolute task.** They score a
   single saccade at a time from a known starting gaze; the separate
   [known-start evaluation](#separate-evaluation-the-papers-known-start-task) replicates that
@@ -643,6 +645,32 @@ the p-values are not corrected for multiple comparisons. The reference is always
   horizontal confidence interval excludes 0.
 - Results: `reports/experiments/statistics/statistics.json`.
 
+#### Within-subject protocol (Dataset 2)
+
+The paper fits every parameter on the test subject's own data; the tables above never see the
+test subject. `scripts/within_subject.py` scores the real-time XGBoost setup (context + range
+features, weighted training) the paper's way. Each subject's recording is split in time into
+three parts, and for each of the 6 ordered (fit, test) pairs a model is trained and then scored
+on the test part. Test parts are never trained on.
+
+| Dataset 2, real-time XGBoost | Training data | Fixation MAE H / V (deg) |
+| :--- | :--- | :---: |
+| Within subject | the fit part of the test subject only (~4.5 min) | 5.44 ± 1.21 / 4.30 ± 0.82 |
+| Adapted | all other subjects + the fit part of the test subject | **4.27 ± 0.97 / 3.78 ± 0.95** |
+| Cross subject | all other subjects | 4.48 ± 1.14 / 3.95 ± 1.17 |
+
+- **One subject's data alone is too little.** Trained on a third of the test subject's own recording,
+  XGBoost does worse than the cross-subject model for 9 of 10 subjects on each axis (Wilcoxon
+  p = 0.02 / 0.06).
+- **Adding the subject's own data to the other subjects helps a little.** Horizontal gains are not
+  significant (7 of 10 subjects improve, p = 0.32); vertical gains are (9 of 10, p = 0.02).
+- **The protocol does not explain the gap to the paper.** Under its within-subject protocol this
+  model scores about the same as cross-subject or worse, so the cross-subject numbers in the
+  [comparison](#comparison-with-barbara-et-al-2023-bspc-86) are not an artefact of the easier
+  protocol.
+- Results: `reports/experiments/within_subject/dataset2/within_subject.json`; paired tests in
+  `reports/experiments/statistics/statistics.json`.
+
 ---
 
 ## Experiment Index
@@ -672,6 +700,7 @@ model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curve
 | `scripts/range_stress_test.py` with `dataset2_range_causal_weighted.yaml` | `reports/experiments/range_stress_test/dataset2/` | Range features when test gaze covers only part of the screen |
 | `scripts/subject_statistics.py` | `reports/experiments/statistics/` | Per-subject Wilcoxon tests and bootstrap confidence intervals |
 | `scripts/known_start_fusion.py --dataset datasetN` | `reports/experiments/known_start_fusion/datasetN/` | Known start fused with cross-subject XGBoost |
+| `scripts/within_subject.py` with `dataset2_range_causal_weighted.yaml` | `reports/experiments/within_subject/dataset2/` | The paper's within-subject protocol for real-time XGBoost |
 
 ---
 
@@ -698,6 +727,7 @@ eog-gaze-pipeline/
 │   ├── range_stress_test.py # range features under skewed gaze
 │   ├── subject_statistics.py  # per-subject significance tests and confidence intervals
 │   ├── known_start_fusion.py  # known start fused with cross-subject XGBoost
+│   ├── within_subject.py    # the paper's within-subject protocol
 │   └── make_figures.py      # result figures from the saved JSON files
 ├── tests/                   # pytest test suite
 ├── reports/
