@@ -1,0 +1,39 @@
+# configs/dataset3_robust_line_causal.yaml
+# ========================================
+# Dataset 3 (Monopolar Non-Stationary: 8 subjects, free head movement), real-time
+# baseline with the settings of dataset2_robust_line_causal.yaml.
+# No head-pose compensation yet: EOG measures the eye-in-head angle, and whether the
+# target stream already accounts for head pose is defined in the Part 2 paper
+# (Barbara et al., BSPC 90, 2024). This is the reference run for that work.
+#
+#   python main.py --config configs/dataset3_robust_line_causal.yaml --phase preprocess
+#   python main.py --config configs/dataset3_robust_line_causal.yaml --phase train_classical
+#   python main.py --config configs/dataset3_robust_line_causal.yaml --phase train_deep
+#   python main.py --config configs/dataset3_robust_line_causal.yaml --phase compare
+
+data:
+  datasets_to_load:
+    - "dataset3"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "robust_line"
+  baseline_window_sec: 60.0
+  baseline_causal: true
+  baseline_clip_mad: 3.0
+
+model:
+  model_type: "conv_bilstm"
+  loss_type: "range_preserving"
+  lambda_corr: 0.5
+  lambda_var: 0.2
+  huber_delta: 2.0
+  calibration_prompt_sec: 30.0
+  lr: 0.0003
+  max_epochs: 150
+  early_stopping_patience: 15
+
+paths:
+  data_processed: "data/processed_dataset3/robustline60_causal"
+  results: "reports/experiments/dataset3/robustline60_causal"
+  reports_figures: "reports/experiments/dataset3/robustline60_causal/figures"

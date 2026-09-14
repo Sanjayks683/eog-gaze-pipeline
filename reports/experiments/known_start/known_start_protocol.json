@@ -1,5 +1,8 @@
 {
   "protocol": "known start, replicating Barbara et al. BSPC 86 (2023) Sec. 4.5.3 and App. E: EOG-derived fixation/saccade/blink labels, mistake-free short windows, 8-trial long segments, per-sample fixation MAE per segment, mean \u00b1 SD across subjects",
+  "datasets": [
+    "dataset2"
+  ],
   "subjects": [
     "S1",
     "S10",

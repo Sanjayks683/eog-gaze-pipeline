@@ -42,24 +42,26 @@ def _window_channel_arrays(trial: Trial) -> Tuple[List[str], List[np.ndarray]]:
 def _fixation_flags(trial: Trial, starts: np.ndarray, win: int) -> np.ndarray:
     """
     Flag windows that fall on a settled fixation, the only samples Barbara et al.
-    (BSPC 2023) score gaze error on: inside a ControlSignal 1/2 interval, starting
-    at least CFG.segmentation.fixation_settle_ms after the last target change, and
-    with no target change inside the window. All False without targets/ControlSignal.
+    (BSPC 2023) score gaze error on: inside a single ControlSignal 1/2 interval (one
+    cue position), starting at least CFG.segmentation.fixation_settle_ms after that
+    interval began. Cue onsets come from the ControlSignal rather than from target
+    changes, because on Dataset 3 the target angle also moves with the head; on
+    Datasets 2 and 4 every cue onset is a target change, so both definitions agree.
+    All False without targets or ControlSignal.
     """
     starts = np.asarray(starts, dtype=np.int64)
     if trial.target_angle is None or "ControlSignal" not in trial.channels or len(starts) == 0:
         return np.zeros(len(starts), dtype=bool)
-    target = np.asarray(trial.target_angle)
-    if target.ndim == 1:
-        target = target[:, np.newaxis]
-    cs = trial.channels["ControlSignal"]
-    n = min(len(target), len(cs))
-    change = np.r_[False, np.any(np.diff(target[:n], axis=0) != 0, axis=1)]
-    last_change = np.maximum.accumulate(np.where(change, np.arange(n), 0))
+    cs = np.asarray(trial.channels["ControlSignal"])
+    n = min(len(trial.target_angle), len(cs))
+    cs = cs[:n]
+    onset = np.r_[True, cs[1:] != cs[:-1]]
+    interval = np.cumsum(onset) - 1
+    interval_start = np.flatnonzero(onset)[interval]
     ends = np.minimum(starts + win - 1, n - 1)
     settle = int(round(CFG.segmentation.fixation_settle_ms * trial.fs / 1000.0))
-    in_interval = np.isin(cs[starts], (1, 2)) & np.isin(cs[ends], (1, 2))
-    return in_interval & (last_change[ends] <= starts) & (starts - last_change[starts] >= settle)
+    return (np.isin(cs[starts], (1, 2)) & (interval[starts] == interval[ends])
+            & (starts - interval_start[starts] >= settle))
 
 
 def _make_event_mask(trial: Trial) -> np.ndarray:

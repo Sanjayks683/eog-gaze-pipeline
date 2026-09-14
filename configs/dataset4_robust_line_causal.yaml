@@ -1,0 +1,45 @@
+# configs/dataset4_robust_line_causal.yaml
+# ========================================
+# Dataset 4 (Monopolar Isotropic: 14 subjects, 16 electrodes around the eyes, chin
+# rest). Real-time baseline with the settings of dataset2_robust_line_causal.yaml:
+# past-only 60 s robust-line drift baseline, all 18 channels (H, V, EOG_0..15).
+# The cue layout differs from Dataset 2: every trial goes from the centre to a 12 deg
+# target in one of 36 directions and back, so half of the cues are at the centre.
+# Kernel SVC/SVR are skipped (hours on this many features and windows); the random
+# forest, XGBoost and the deep model run.
+#
+#   python main.py --config configs/dataset4_robust_line_causal.yaml --phase preprocess
+#   python main.py --config configs/dataset4_robust_line_causal.yaml --phase train_classical
+#   python main.py --config configs/dataset4_robust_line_causal.yaml --phase train_deep
+#   python main.py --config configs/dataset4_robust_line_causal.yaml --phase compare
+
+data:
+  datasets_to_load:
+    - "dataset4"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "robust_line"
+  baseline_window_sec: 60.0
+  baseline_causal: true
+  baseline_clip_mad: 3.0
+
+cv:
+  classical_classifiers: ["rf"]
+  classical_regressors: ["xgb"]
+
+model:
+  model_type: "conv_bilstm"
+  loss_type: "range_preserving"
+  lambda_corr: 0.5
+  lambda_var: 0.2
+  huber_delta: 2.0
+  calibration_prompt_sec: 30.0
+  lr: 0.0003
+  max_epochs: 150
+  early_stopping_patience: 15
+
+paths:
+  data_processed: "data/processed_dataset4/robustline60_causal"
+  results: "reports/experiments/dataset4/robustline60_causal"
+  reports_figures: "reports/experiments/dataset4/robustline60_causal/figures"

@@ -1,0 +1,35 @@
+# configs/dataset3_range_causal_fixation.yaml
+# ===========================================
+# Dataset 3, real-time: dataset3_range_causal_weighted.yaml, but the regressors are
+# fit on fixation windows only. No head-pose compensation. Reuses the range_causal
+# processed data: run only train_classical and compare after
+# dataset3_range_causal_weighted.yaml has been preprocessed.
+#
+#   python main.py --config configs/dataset3_range_causal_fixation.yaml --phase train_classical
+#   python main.py --config configs/dataset3_range_causal_fixation.yaml --phase compare
+
+data:
+  datasets_to_load:
+    - "dataset3"
+  window_channel_mode: "all_eog"
+
+preprocessing:
+  drift_removal_method: "robust_line"
+  baseline_window_sec: 60.0
+  baseline_causal: true
+  baseline_clip_mad: 3.0
+  context_baselines:
+    - ["robust_mean", 30.0]
+    - ["robust_mean", 120.0]
+    - ["robust_line", 120.0]
+  context_lags_sec: [1.0, 2.0, 4.0, 8.0]
+  context_range_windows_sec: [60.0, 120.0, 240.0]
+  context_range_quantiles: [[0.10, 0.90], [0.05, 0.95]]
+
+cv:
+  regression_train_windows: "fixation"
+
+paths:
+  data_processed: "data/processed_dataset3/range_causal"
+  results: "reports/experiments/dataset3/range_causal_fixation"
+  reports_figures: "reports/experiments/dataset3/range_causal_fixation/figures"

@@ -487,6 +487,7 @@ def run_known_start_protocol(trials: List[Trial]) -> Dict:
         "protocol": "known start, replicating Barbara et al. BSPC 86 (2023) Sec. 4.5.3 and App. E: "
                     "EOG-derived fixation/saccade/blink labels, mistake-free short windows, 8-trial long "
                     "segments, per-sample fixation MAE per segment, mean ± SD across subjects",
+        "datasets": sorted({t.dataset_source for t in trials}),
         "subjects": subjects,
         "config": dict(vars(cfg)),
         "protocol_stats": _protocol_stats(data),
@@ -523,7 +524,9 @@ def known_start_rows(results: Dict) -> List[Dict]:
                          "mae_h_sd_deg": r["mae_h_sd_deg"], "mae_v_sd_deg": r["mae_v_sd_deg"],
                          "excluded_mae_h_deg": r["excluded_mae_h_deg"], "excluded_mae_v_deg": r["excluded_mae_v_deg"],
                          "excluded_fraction": r["excluded_fraction"]})
-    for method, segments, h, v, frac in PAPER_KNOWN_START:
+    # The published numbers are for Dataset 2 only.
+    published = PAPER_KNOWN_START if results.get("datasets") == ["dataset2"] else []
+    for method, segments, h, v, frac in published:
         rows.append({"method": method, "fit": "same subject", "segments": segments,
                      "mae_h_deg": None, "mae_v_deg": None, "mae_h_sd_deg": None, "mae_v_sd_deg": None,
                      "excluded_mae_h_deg": h, "excluded_mae_v_deg": v, "excluded_fraction": frac})

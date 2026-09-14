@@ -52,9 +52,9 @@ class SegmentationConfig:
         "blink"
     ])
     majority_overlap_threshold: float = 0.5
-    # A window is a "fixation" window when it lies inside a ControlSignal 1/2
-    # interval, starts this long after the last target change and contains no
-    # change. Saccades on Dataset 2 peak ~200 ms and settle by ~400 ms after the cue.
+    # A window is a "fixation" window when it lies inside one ControlSignal 1/2
+    # interval and starts this long after the interval (the cue) began. Saccades on
+    # Dataset 2 peak ~200 ms and settle by ~400 ms after the cue.
     fixation_settle_ms: float = 400.0
 
 @dataclass
@@ -65,6 +65,10 @@ class CVConfig:
     use_grid_search: bool = False
     grid_search_max_samples: int = 20000
     svm_max_train_samples: int = 50000
+    # Classical models run by train_classical (the trivial baselines always run).
+    # Kernel SVC/SVR get slow on wide feature sets such as Dataset 4's 18 channels.
+    classical_classifiers: List[str] = field(default_factory=lambda: ["svc", "rf"])
+    classical_regressors: List[str] = field(default_factory=lambda: ["svr", "xgb"])
     # Which training windows classical regressors are fit on: "all", "fixation"
     # (fixation windows only) or "weighted" (all windows, non-fixation ones weighted
     # by regression_nonfixation_weight). Test windows are never filtered.

@@ -1,0 +1,15 @@
+# configs/dataset3_known_start.yaml
+# =================================
+# Dataset 3: the known-start protocol of configs/dataset2_known_start.yaml, without
+# head-pose compensation (the target angle moves with the head; see
+# dataset3_robust_line_causal.yaml). No published known-start numbers for this
+# dataset are listed.
+#
+#   python main.py --config configs/dataset3_known_start.yaml --phase known_start
+
+data:
+  datasets_to_load:
+    - "dataset3"
+
+paths:
+  results: "reports/experiments/dataset3/known_start"

@@ -293,6 +293,7 @@ def _parse_mat_trial(
     event_timestamps = make_empty_event_timestamps()
     target_angle: Optional[np.ndarray] = None
     head_pose: Optional[np.ndarray] = None
+    head_position: Optional[np.ndarray] = None
     detected_fs: Optional[float] = fs
 
     EOG_CHANNEL_PATTERNS = re.compile(
@@ -326,7 +327,12 @@ def _parse_mat_trial(
             continue
 
         if has_head_pose and POSE_PATTERNS.search(key) and isinstance(val, np.ndarray):
-            head_pose = np.array(val, dtype=np.float64)
+            # Head_Position (x, y, z in m) matches POSE_PATTERNS too; storing it in
+            # head_pose used to overwrite Head_Pose (yaw, pitch, roll in deg).
+            if re.search(r"(?i)position", key):
+                head_position = np.array(val, dtype=np.float64)
+            else:
+                head_pose = np.array(val, dtype=np.float64)
             continue
 
         if EVENT_PATTERNS.search(key):
@@ -364,7 +370,8 @@ def _parse_mat_trial(
         event_timestamps=event_timestamps,
         target_angle=target_angle,
         head_pose=head_pose,
-        metadata={"source_file": trial_id},
+        metadata={"source_file": trial_id,
+                  **({"head_position": head_position} if head_position is not None else {})},
     )
 
 

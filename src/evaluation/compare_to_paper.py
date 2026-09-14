@@ -16,6 +16,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -98,8 +99,8 @@ def load_result_safe(name: str, results_dir: str) -> Optional[Dict]:
 def _detect_dataset_label() -> str:
     """Determine dataset scope label based on config or processed metadata."""
     dsl = getattr(CFG.data, "datasets_to_load", None)
-    if dsl == ["dataset2"] or (dsl and len(dsl) == 1 and "dataset2" in dsl):
-        return "Dataset 2 only"
+    if dsl and len(dsl) == 1 and re.fullmatch(r"dataset\d", dsl[0]):
+        return f"Dataset {dsl[0][-1]} only"
     elif dsl and len(dsl) < 4:
         return f"Subset ({', '.join(dsl)})"
 
@@ -107,8 +108,8 @@ def _detect_dataset_label() -> str:
         from src.data.datasets import load_processed
         _, _, meta = load_processed("classification")
         sources = sorted({m.get("dataset_source") for m in meta if m.get("dataset_source")})
-        if sources == ["dataset2"]:
-            return "Dataset 2 only"
+        if len(sources) == 1 and re.fullmatch(r"dataset\d", sources[0]):
+            return f"Dataset {sources[0][-1]} only"
         elif len(sources) == 1:
             return f"{sources[0].capitalize()} only"
         elif len(sources) < 4:
@@ -213,9 +214,11 @@ def build_master_table(results_dir: str = None) -> List[Dict]:
         })
 
     for paper_key, paper_data in PAPER_RESULTS.items():
-        if dataset_label == "Dataset 2 only" and "Dataset 2" not in paper_data["dataset"]:
+        # With a single dataset loaded, list only that dataset's published numbers.
+        single = re.fullmatch(r"(Dataset \d) only", dataset_label)
+        if single and single.group(1) not in paper_data["dataset"]:
             continue
-        if dataset_label == "Dataset 2 only" and all(paper_data.get(k) is None for k in _ERROR_KEYS):
+        if single and all(paper_data.get(k) is None for k in _ERROR_KEYS):
             continue
         rows.append({
             "method": f"Published: {paper_key}",

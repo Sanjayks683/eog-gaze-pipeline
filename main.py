@@ -160,12 +160,12 @@ def run_train_classical():
     save_results(run_regression_cv(Xf_reg, y_reg, folds, model_name="mean", metadata=meta),
                  "baseline_reg_mean")
 
-    for clf in ["svc", "rf"]:
+    for clf in CFG.cv.classical_classifiers:
         print(f"\nTraining Classical Classifier: {clf.upper()}")
         r = run_classification_cv(Xf_cls, y_cls, folds, model_name=clf)
         save_results(r, f"classical_clf_{clf}")
 
-    for reg in ["svr", "xgb"]:
+    for reg in CFG.cv.classical_regressors:
         print(f"\nTraining Classical Regressor: {reg.upper()}")
         r = run_regression_cv(Xf_reg, y_reg, folds, model_name=reg, metadata=meta)
         save_results(r, f"classical_reg_{reg}")

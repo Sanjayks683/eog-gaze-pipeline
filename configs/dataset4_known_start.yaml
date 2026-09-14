@@ -1,0 +1,15 @@
+# configs/dataset4_known_start.yaml
+# =================================
+# Dataset 4: the known-start protocol of configs/dataset2_known_start.yaml. Its
+# trials have the same 1 s / 1 s / 2 s blink structure (centre -> 12 deg target ->
+# centre -> blink). No published known-start numbers exist for this dataset, so the
+# table has no "Published" rows.
+#
+#   python main.py --config configs/dataset4_known_start.yaml --phase known_start
+
+data:
+  datasets_to_load:
+    - "dataset4"
+
+paths:
+  results: "reports/experiments/dataset4/known_start"
