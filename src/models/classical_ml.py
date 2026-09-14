@@ -77,10 +77,13 @@ def build_xgb_regressor(use_grid_search: bool = False):
     """XGBRegressor (multioutput via MultiOutputRegressor)."""
     if not HAS_XGB:
         raise ImportError("XGBoost not installed. pip install xgboost")
+    # The device is only passed when it is not the CPU, so CPU runs keep exactly the
+    # arguments every Dataset 2 result was produced with.
+    device = {} if CFG.cv.xgb_device == "cpu" else {"device": CFG.cv.xgb_device}
     xgb = XGBRegressor(
         n_estimators=200, max_depth=6, learning_rate=0.05,
         subsample=0.8, colsample_bytree=0.8,
-        random_state=CFG.cv.random_seed, n_jobs=-1, verbosity=0
+        random_state=CFG.cv.random_seed, n_jobs=-1, verbosity=0, **device
     )
     reg = MultiOutputRegressor(xgb, n_jobs=1)
     if use_grid_search:

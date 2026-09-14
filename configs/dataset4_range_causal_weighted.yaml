@@ -5,8 +5,8 @@
 # and rolling-range features, all windows used for training with non-fixation
 # windows weighted 0.2. The range features were motivated by Dataset 2's evenly
 # spread cues; Dataset 4's cues sit at the centre or on a 12 deg ring, so whether
-# they still help is part of what this run tests. SVC/SVR skipped as in
-# dataset4_robust_line_causal.yaml.
+# they still help is part of what this run tests. SVC/SVR skipped and XGBoost on
+# the GPU, as in dataset4_robust_line_causal.yaml.
 #
 #   python main.py --config configs/dataset4_range_causal_weighted.yaml --phase preprocess
 #   python main.py --config configs/dataset4_range_causal_weighted.yaml --phase train_classical
@@ -33,6 +33,7 @@ preprocessing:
 cv:
   classical_classifiers: ["rf"]
   classical_regressors: ["xgb"]
+  xgb_device: "cuda"
   regression_train_windows: "weighted"
   regression_nonfixation_weight: 0.2
 

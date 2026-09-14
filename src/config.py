@@ -69,6 +69,9 @@ class CVConfig:
     # Kernel SVC/SVR get slow on wide feature sets such as Dataset 4's 18 channels.
     classical_classifiers: List[str] = field(default_factory=lambda: ["svc", "rf"])
     classical_regressors: List[str] = field(default_factory=lambda: ["svr", "xgb"])
+    # XGBoost device: "cpu" (every Dataset 2 result) or "cuda". GPU training is much
+    # faster but its results differ slightly from CPU ones.
+    xgb_device: str = "cpu"
     # Which training windows classical regressors are fit on: "all", "fixation"
     # (fixation windows only) or "weighted" (all windows, non-fixation ones weighted
     # by regression_nonfixation_weight). Test windows are never filtered.

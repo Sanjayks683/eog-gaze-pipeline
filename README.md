@@ -410,27 +410,56 @@ the paper's comparison method [BSPC 47, 2019]):
   up to 150 ms past the end of a movement.
 ---
 
+## Experiment Index
+
+Every experiment is one YAML config in `configs/`, and no two experiments share an output folder.
+Dataset 2 experiments write to `reports/experiments/<name>/`; Datasets 3 and 4 write to
+`reports/experiments/dataset3/<name>/` and `reports/experiments/dataset4/<name>/`, with processed
+data under `data/processed_datasetN/<name>/` (git-ignored). Each results folder holds one JSON per
+model, a `master_results_table.csv` (or `known_start_table.csv`), and loss curves for deep runs.
+
+| Config | Results | What it tests |
+| :--- | :--- | :--- |
+| `dataset2_all_eog.yaml` | `reports/` | High-pass baseline, all 6 channels |
+| `dataset2_median_baseline{,_causal}.yaml` | `reports/experiments/median30{,_causal}/` | 30 s moving-median drift removal |
+| `dataset2_robust_mean.yaml` | `reports/experiments/robustmean60/` | Centred 60 s robust mean (offline) |
+| `dataset2_robust_line_causal.yaml` | `reports/experiments/robustline60_causal/` | Past-only 60 s robust line (real-time) |
+| `dataset2_context_causal{,_fixation}.yaml`, `dataset2_context_centred_fixation.yaml` | `reports/experiments/context_*/` | Context features |
+| `dataset2_range_causal{,_weighted,_fixation}.yaml`, `dataset2_range_centred_{fixation,weighted}.yaml` | `reports/experiments/range_*/` | Context + rolling-range features; training-window choice |
+| `dataset2_known_start.yaml` | `reports/experiments/known_start/` | The paper's known-start protocol (separate task) |
+| `dataset3_robust_line_causal.yaml` | `reports/experiments/dataset3/robustline60_causal/` | Dataset 3 real-time baseline (no head-pose compensation) |
+| `dataset3_range_causal_{weighted,fixation}.yaml` | `reports/experiments/dataset3/range_causal_*/` | Dataset 3 with the best Dataset 2 setup |
+| `dataset3_known_start.yaml` | `reports/experiments/dataset3/known_start/` | Dataset 3 known-start protocol |
+| `dataset4_robust_line_causal.yaml` | `reports/experiments/dataset4/robustline60_causal/` | Dataset 4 real-time baseline (18 channels) |
+| `dataset4_range_causal_{weighted,fixation}.yaml` | `reports/experiments/dataset4/range_causal_*/` | Dataset 4 with the best Dataset 2 setup |
+| `dataset4_known_start.yaml` | `reports/experiments/dataset4/known_start/` | Dataset 4 known-start protocol |
+
+---
+
 ## Project Structure
 
 ```
 eog-gaze-pipeline/
+├── configs/                 # one YAML per experiment (see Experiment Index)
 ├── data/
 │   ├── raw/                 # downloaded ZIPs extracted here
-│   └── processed/           # cached numpy arrays + CV folds
+│   └── processed*/          # cached arrays + CV folds per experiment (git-ignored)
 ├── src/
 │   ├── config.py            # ALL tunable parameters — edit here only
 │   ├── data/                # schema, loaders, unify, datasets
 │   ├── preprocessing/       # filtering, blink detection, normalization
-│   ├── features/            # hand-crafted features for classical ML
+│   ├── features/            # hand-crafted and context/range features for classical ML
 │   ├── models/              # integration baseline, classical ML, deep model
 │   ├── training/            # CV splits, training loop
-│   ├── evaluation/          # metrics, paper comparison table
+│   ├── evaluation/          # metrics, paper comparison table, known-start protocol
 │   └── ablations/           # head-pose (Phase 9), direction (Phase 10)
 ├── scripts/
 │   └── inspect_raw.py       # Phase 0 verification
 ├── tests/                   # pytest test suite
 ├── notebooks/               # EDA and results notebooks
-├── reports/figures/         # all saved plots
+├── reports/
+│   ├── experiments/         # <name>/ (Dataset 2), dataset3/<name>/, dataset4/<name>/
+│   └── figures/             # all saved plots
 └── requirements.txt
 ```
 

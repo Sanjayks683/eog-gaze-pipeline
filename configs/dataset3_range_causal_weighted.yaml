@@ -2,7 +2,7 @@
 # ===========================================
 # Dataset 3, real-time: the best all-round Dataset 2 setup
 # (dataset2_range_causal_weighted.yaml) without head-pose compensation; see
-# dataset3_robust_line_causal.yaml.
+# dataset3_robust_line_causal.yaml. SVC/SVR skipped, XGBoost on the GPU.
 #
 #   python main.py --config configs/dataset3_range_causal_weighted.yaml --phase preprocess
 #   python main.py --config configs/dataset3_range_causal_weighted.yaml --phase train_classical
@@ -27,6 +27,9 @@ preprocessing:
   context_range_quantiles: [[0.10, 0.90], [0.05, 0.95]]
 
 cv:
+  classical_classifiers: ["rf"]
+  classical_regressors: ["xgb"]
+  xgb_device: "cuda"
   regression_train_windows: "weighted"
   regression_nonfixation_weight: 0.2
 

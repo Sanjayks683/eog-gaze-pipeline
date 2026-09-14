@@ -5,6 +5,8 @@
 # No head-pose compensation yet: EOG measures the eye-in-head angle, and whether the
 # target stream already accounts for head pose is defined in the Part 2 paper
 # (Barbara et al., BSPC 90, 2024). This is the reference run for that work.
+# Kernel SVC/SVR are skipped (CPU-only); the random forest runs on the CPU, XGBoost
+# (cv.xgb_device) and the deep model on the GPU.
 #
 #   python main.py --config configs/dataset3_robust_line_causal.yaml --phase preprocess
 #   python main.py --config configs/dataset3_robust_line_causal.yaml --phase train_classical
@@ -21,6 +23,11 @@ preprocessing:
   baseline_window_sec: 60.0
   baseline_causal: true
   baseline_clip_mad: 3.0
+
+cv:
+  classical_classifiers: ["rf"]
+  classical_regressors: ["xgb"]
+  xgb_device: "cuda"
 
 model:
   model_type: "conv_bilstm"

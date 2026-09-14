@@ -5,8 +5,9 @@
 # past-only 60 s robust-line drift baseline, all 18 channels (H, V, EOG_0..15).
 # The cue layout differs from Dataset 2: every trial goes from the centre to a 12 deg
 # target in one of 36 directions and back, so half of the cues are at the centre.
-# Kernel SVC/SVR are skipped (hours on this many features and windows); the random
-# forest, XGBoost and the deep model run.
+# Kernel SVC/SVR are skipped (CPU-only, hours on this many features and windows).
+# The random forest runs on the CPU; XGBoost (cv.xgb_device) and the deep model run
+# on the GPU.
 #
 #   python main.py --config configs/dataset4_robust_line_causal.yaml --phase preprocess
 #   python main.py --config configs/dataset4_robust_line_causal.yaml --phase train_classical
@@ -27,6 +28,7 @@ preprocessing:
 cv:
   classical_classifiers: ["rf"]
   classical_regressors: ["xgb"]
+  xgb_device: "cuda"
 
 model:
   model_type: "conv_bilstm"

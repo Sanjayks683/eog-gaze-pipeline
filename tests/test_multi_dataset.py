@@ -108,3 +108,12 @@ def test_known_start_table_lists_published_numbers_only_for_dataset2():
 
     assert len(published(known_start_rows({**base, "datasets": ["dataset2"]}))) == 4
     assert published(known_start_rows({**base, "datasets": ["dataset4"]})) == []
+
+
+def test_xgb_device_is_passed_only_when_it_is_not_the_cpu(restore_cfg):
+    from src.models.classical_ml import build_xgb_regressor
+
+    CFG.cv.xgb_device = "cpu"
+    assert build_xgb_regressor().estimator.get_params().get("device") is None
+    CFG.cv.xgb_device = "cuda"
+    assert build_xgb_regressor().estimator.get_params()["device"] == "cuda"
