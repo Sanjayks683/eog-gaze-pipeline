@@ -185,12 +185,17 @@ def build_master_table(results_dir: str = None) -> List[Dict]:
         d = load_result_safe(f"classical_reg_{reg_name}", results_dir)
         if d:
             train_windows = d.get("train_windows", "all")
+            notes = {
+                "all": "",
+                "fixation": "trained on fixation windows only",
+                "weighted": f"trained on all windows, non-fixation windows weighted {d.get('nonfixation_weight')}",
+            }.get(train_windows, f"trained on {train_windows} windows")
             rows.append({
                 "method": f"Classical ML ({reg_name.upper()}) — regression",
                 "dataset": dataset_label,
                 **_error_columns(d),
                 "f1_weighted": None,
-                "notes": "" if train_windows == "all" else f"trained on {train_windows} windows only",
+                "notes": notes,
             })
 
     for model_type in ["conv1d", "lstm", "conv_bilstm"]:

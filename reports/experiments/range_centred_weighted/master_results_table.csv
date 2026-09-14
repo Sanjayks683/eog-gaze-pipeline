@@ -3,8 +3,8 @@ Baseline: majority class,Dataset 2 only,,,,,,,0.33355674110035816,Always predict
 Baseline: train-fold mean angle,Dataset 2 only,14.073014811976574,7.996408185564892,12.103962397127384,6.850477452200861,12.55718404455141,7.05260242541368,,Always predicts the train fold's mean H/V angle
 Classical ML (SVC) — classification,Dataset 2 only,,,,,,,0.5143230140800951,
 Classical ML (RF) — classification,Dataset 2 only,,,,,,,0.525311046208027,
-Classical ML (SVR) — regression,Dataset 2 only,5.744295301493161,4.979795004296644,4.183634110208839,3.9057554500875913,3.500736748323834,3.4334686831082246,,trained on weighted windows only
-Classical ML (XGB) — regression,Dataset 2 only,5.253135108370703,4.534175375731581,3.792478561401367,3.536245822906494,3.234378316656385,3.2561956908084513,,trained on weighted windows only
+Classical ML (SVR) — regression,Dataset 2 only,5.744295301493161,4.979795004296644,4.183634110208839,3.9057554500875913,3.500736748323834,3.4334686831082246,,"trained on all windows, non-fixation windows weighted 0.2"
+Classical ML (XGB) — regression,Dataset 2 only,5.253135108370703,4.534175375731581,3.792478561401367,3.536245822906494,3.234378316656385,3.2561956908084513,,"trained on all windows, non-fixation windows weighted 0.2"
 Deep multi-task,—,,,,,,,,Run Phase 7 to generate deep_model_<type>.json
 Published: Barbara_2023_DKF_short,Dataset 2,,,,,1.64,1.97,,BSPC 86 (2023) Table 2: ±0.82 / ±0.34; within-subject; mistake-free segments; 6.85% outliers excluded
 Published: Barbara_2023_DKF_long,Dataset 2,,,,,5.23,6.59,,BSPC 86 (2023) Table 3: ±2.00 / ±3.10; within-subject; 5.83% outlier segments excluded
