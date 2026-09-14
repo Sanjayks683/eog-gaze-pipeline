@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below, and cite the EyeCon dataset papers listed in the README."
+title: "EOG-Based Eye Gaze Estimation Pipeline for the EyeCon Datasets"
+type: software
+authors:
+  - alias: Sanjayks683
+repository-code: "https://github.com/Sanjayks683/eog-gaze-pipeline"
+license: MIT
+date-released: 2026-09-15
+keywords:
+  - electrooculography
+  - EOG
+  - gaze estimation
+  - baseline drift
+  - EyeCon

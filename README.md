@@ -957,6 +957,9 @@ eog-gaze-pipeline/
 ├── reports/
 │   ├── experiments/         # <name>/ (Dataset 2), dataset1/<name>/, dataset3/<name>/, dataset4/<name>/
 │   └── figures/             # raw-signal plots; results/ holds the result figures
+├── docs/                    # manuscript draft
+├── CITATION.cff
+├── LICENSE
 └── requirements.txt
 ```
 
@@ -1006,6 +1009,15 @@ All four papers must be cited in any work using this pipeline:
 3. N. Barbara, T. A. Camilleri, K. P. Camilleri, "Real-Time Continuous EOG-based Gaze Angle Estimation with Baseline Drift Compensation Under Non-Stationary Head Conditions," *Biomedical Signal Processing and Control*, vol. 90, Apr. 2024.
 
 4. N. Barbara, T. A. Camilleri, K. P. Camilleri, "A Systematic Quantitative Analysis on Bipolar Channel Selection for EOG-Based Gaze Displacement Estimation," *Biomedical Signal Processing and Control*.
+
+---
+
+## License
+
+- **Code:** released under the MIT License ([`LICENSE`](LICENSE)).
+- **EyeCon datasets:** not part of this repository, and they remain under their own terms of use.
+  Cite the dataset papers above when you use them.
+- **Citing this code:** use [`CITATION.cff`](CITATION.cff), GitHub's "Cite this repository".
 
 ---
 
