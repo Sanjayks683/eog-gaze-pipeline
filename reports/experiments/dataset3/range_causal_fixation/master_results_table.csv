@@ -1,0 +1,6 @@
+method,dataset,rmse_h_deg,rmse_v_deg,mae_h_deg,mae_v_deg,fixation_mae_h_deg,fixation_mae_v_deg,f1_weighted,notes
+Baseline: majority class,Dataset 3 only,,,,,,,0.33289743325793925,Always predicts the train fold's most frequent class
+Baseline: train-fold mean angle,Dataset 3 only,10.730971417285284,7.2848847448569565,8.926822662353516,6.0640177726745605,8.899523739746359,6.277456003931905,,Always predicts the train fold's mean H/V angle
+Classical ML (RF) — classification,Dataset 3 only,,,,,,,0.5457273398350995,
+Classical ML (XGB) — regression,Dataset 3 only,7.044854460188257,6.269725038379655,5.258448600769043,4.953003883361816,4.282126790031983,4.355135589861028,,trained on fixation windows only
+Deep multi-task,—,,,,,,,,Run Phase 7 to generate deep_model_<type>.json

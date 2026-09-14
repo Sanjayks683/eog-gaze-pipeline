@@ -408,6 +408,52 @@ the paper's comparison method [BSPC 47, 2019]):
   than by the authors; the outlier rule is label-based rather than error-based; the detector and
   blink rules were set by inspecting Dataset 2 events from all subjects; and blink decisions look
   up to 150 ms past the end of a movement.
+### Datasets 3 and 4
+
+The same pipeline and 5-fold cross-subject protocol, with the settings chosen on Dataset 2 applied
+unchanged, so these datasets also act as a check of those choices on data they were not tuned on.
+Two differences, for speed: the CPU-only kernel SVC/SVR are skipped, and XGBoost runs on the GPU
+(`cv.xgb_device: cuda`), whose numbers differ slightly from the CPU XGBoost used on Dataset 2.
+Configs and result folders are listed in the [Experiment Index](#experiment-index). Dataset 4's
+deep-model JSON (59 MB, mostly per-window metadata) is kept out of git; its numbers are in
+`reports/experiments/dataset4/robustline60_causal/master_results_table.csv`.
+
+- **Dataset 4 (Monopolar Isotropic):** 14 subjects, 16 electrodes around the eyes plus H and V
+  (18 channels), chin rest. Every trial goes from the centre to a 12° target in one of 36
+  directions, back to the centre, then a blink, so targets are small and half are at the centre.
+- **Dataset 3 (Monopolar Non-Stationary):** 8 subjects with Dataset 2's electrodes and trial
+  timing, but free head movement, and the target angle moves with the head. **No head-pose
+  compensation yet** (it needs the Part 2 paper, BSPC 90, 2024), so these are reference numbers.
+
+| Real-time; 5-fold cross-subject unless noted | Dataset 4 fixation MAE H / V | Dataset 4 RMSE H / V | Dataset 3 fixation MAE H / V | Dataset 3 RMSE H / V |
+| :--- | :---: | :---: | :---: | :---: |
+| Train-fold mean angle | 3.82 / 3.83 | 4.04 / 4.04 | 8.90 / 6.28 | 10.73 / 7.28 |
+| Robust line 60 s, XGBoost | 1.90 / 2.26 | 2.48 / 2.75 | 4.65 / 4.67 | 6.35 / 6.11 |
+| Robust line 60 s, Deep Conv1D+BiLSTM | 1.57 / 1.80 | 2.44 / 2.63 | 4.76 / 4.67 | 6.51 / 6.09 |
+| + context + range, XGBoost, weighted training | 1.33 / 1.56 | 2.26 / 2.48 | 4.42 / 4.46 | 6.18 / 5.84 |
+| + context + range, XGBoost, fixation windows only | 1.11 / 1.51 | 3.12 / 3.37 | 4.28 / 4.36 | 7.04 / 6.27 |
+| Known start, same subject, short (detected saccades) | 0.54 / 1.21 | — | 2.72 / 1.97 | — |
+| Known start, same subject, long 32 s (detected saccades) | 2.26 / 9.69 | — | 8.04 / 13.02 | — |
+
+- **Context and range features with weighted training help on both datasets:** XGBoost's fixation
+  MAE drops from 1.90 / 2.26 to 1.33 / 1.56° on Dataset 4 and from 4.65 / 4.67 to 4.42 / 4.46° on
+  Dataset 3. The features and the weighting were not run separately here, so the gain belongs to
+  the combination. It holds on Dataset 4, whose targets are not spread evenly (centre plus a 12° ring).
+- **Compared with always predicting the mean angle,** weighted XGBoost removes
+  65% / 45% (H / V) of the fixation error on Dataset 2,
+  65% / 59% on Dataset 4 and 50% / 29% on
+  Dataset 3. Dataset 4's errors are small in degrees mostly because its targets span only ±12°.
+- **Deep model:** on Dataset 4 it beats XGBoost without context features (1.57 / 1.80 vs
+  1.90 / 2.26°); on Dataset 3 it scores 4.76 / 4.67° against XGBoost's
+  4.65 / 4.67°. It gets no context or range features.
+- **Dataset 3 keeps a smaller share of the gain:** weighted XGBoost removes 50% / 29% of the
+  mean-angle error versus 65% / 45% on Dataset 2, and long known-start segments reach
+  8.04 / 13.02°. Free head movement is the obvious suspect, but Dataset 3 also has fewer subjects (8)
+  and its head movement is not compensated yet, so the cause is not isolated.
+- **Known start, long segments, vertical:** blinks the detector misses leave a lasting vertical
+  offset that keeps adding up (1.9% of labelled blinks counted as eye
+  movements on Dataset 4, 5.1% on Dataset 3).
+
 ---
 
 ## Experiment Index
